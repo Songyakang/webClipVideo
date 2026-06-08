@@ -64,16 +64,7 @@ export class TransportBar extends LitElement {
         <button class="primary" @click=${this._split}>切割 S</button>
       </div>
       <div class="status">${this.message}</div>
-      <div class="group">
-        <button
-          ?disabled=${!this.hasPreviewAsset || this.busyAssetId !== null}
-          @click=${() => this._triggerJob('thumbnail')}
-        >缩略图</button>
-        <button class="primary"
-          ?disabled=${!this.hasPreviewAsset || this.busyAssetId !== null}
-          @click=${() => this._triggerJob('transcode')}
-        >转 MP4</button>
-      </div>
+      <div class="group"></div>
     `;
   }
 }

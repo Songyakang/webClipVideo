@@ -1,27 +1,19 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import type { MediaAsset, TimelineClip, TimelineTrack, ProjectState } from './lib/types.js';
-import { loadProject, saveProject, listAssets, saveAsset, deleteAssetFromDB, saveFile, getFile } from './lib/store.js';
+import type { MediaAsset, TimelineClip, ProjectState } from './lib/types.js';
+import { loadProject, saveProject, listAssets, saveAsset, deleteAssetFromDB, saveFile } from './lib/store.js';
 import { computeDuration } from './lib/media.js';
-import './components/asset-library.js';
 import './components/preview-canvas.js';
-import './components/inspector-panel.js';
 import './components/timeline-panel.js';
 import './components/transport-bar.js';
 
-const defaultTracks = (): TimelineTrack[] => [
-  { id: 'V1', label: 'V1', type: 'video', muted: false, disabled: false },
-  { id: 'V2', label: 'V2', type: 'video', muted: false, disabled: false },
-  { id: 'A1', label: 'A1', type: 'audio', muted: false, disabled: false },
-  { id: 'A2', label: 'A2', type: 'audio', muted: false, disabled: false },
-  { id: 'T1', label: 'T1', type: 'text', muted: false, disabled: false },
-];
+const SINGLE_TRACK = { id: 'V1', label: '视频轨', type: 'video' as const, muted: false, disabled: false };
 
 const DEFAULT_PROJECT: ProjectState = {
   version: 1,
   name: '默认项目',
   playheadSeconds: 0,
-  tracks: defaultTracks(),
+  tracks: [SINGLE_TRACK],
   timelineClips: [],
   updatedAt: new Date().toISOString(),
 };
@@ -36,31 +28,82 @@ export class VideoClipEditor extends LitElement {
       background: #0a0e14;
       color: #c8d6e5;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
     }
 
-    .workspace-shell {
-      display: grid;
-      grid-template-columns: 260px 1fr 280px;
-      grid-template-rows: 1fr auto;
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid rgba(148,171,214,0.06);
+      gap: 12px;
+    }
+
+    .topbar .brand {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .topbar .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .topbar button {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(148,171,214,0.15);
+      background: rgba(255,255,255,0.04);
+      color: #c8d6e5;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .topbar button:hover { background: rgba(255,255,255,0.08); }
+    .topbar button.primary { background: rgba(77,150,255,0.15); border-color: rgba(77,150,255,0.25); color: #4d96ff; }
+    .topbar button.primary:hover { background: rgba(77,150,255,0.25); }
+    .topbar input[type="file"] { display: none; }
+
+    .message {
+      font-size: 12px;
+      color: #6b7d99;
+      flex: 1;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .preview-section {
       flex: 1;
       min-height: 0;
-      gap: 1px;
-      background: rgba(148, 171, 214, 0.06);
+      display: flex;
+      flex-direction: column;
     }
 
-    .timeline-panel-wrapper {
-      grid-column: 1 / -1;
-      min-height: 0;
+    .timeline-section {
+      border-top: 1px solid rgba(148,171,214,0.08);
     }
   `;
 
   @state() _assets: MediaAsset[] = [];
   @state() _project: ProjectState = DEFAULT_PROJECT;
-  @state() _message = '素材库空着, 先传点东西进来';
+  @state() _message = '导入视频开始剪辑';
   @state() _isPlaying = false;
   @state() _busyAssetId: string | null = null;
 
-  private _fileMap = new Map<string, File>();
   private _playheadSeconds = 0;
 
   connectedCallback() {
@@ -74,7 +117,7 @@ export class VideoClipEditor extends LitElement {
       listAssets(),
     ]);
     if (savedProject) {
-      this._project = { ...savedProject, tracks: savedProject.tracks.length > 0 ? savedProject.tracks : defaultTracks() };
+      this._project = { ...savedProject, tracks: [SINGLE_TRACK] };
       this._playheadSeconds = savedProject.playheadSeconds;
     }
     this._assets = savedAssets;
@@ -82,24 +125,22 @@ export class VideoClipEditor extends LitElement {
   }
 
   private async _saveProject() {
-    const project: ProjectState = {
+    await saveProject({
       ...this._project,
       playheadSeconds: this._playheadSeconds,
       updatedAt: new Date().toISOString(),
-    };
-    await saveProject(project);
+    });
   }
 
-  // --- Event handlers ---
+  private async _handleUpload(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = input.files;
+    if (!files?.length) return;
 
-  private _onUpload = async (e: CustomEvent) => {
-    const files = e.detail as File[];
-    if (!files.length) return;
-
-    this._message = `正在分析并导入 ${files.length} 个素材...`;
+    this._message = '分析中...';
     this.requestUpdate();
 
-    for (const file of files) {
+    for (const file of Array.from(files)) {
       let durationSeconds: number | undefined;
       if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
         durationSeconds = await computeDuration(file).catch(() => undefined);
@@ -111,10 +152,7 @@ export class VideoClipEditor extends LitElement {
         title: file.name.replace(/\.[^.]+$/, '') || file.name,
         originalName: file.name,
         mimeType: file.type || 'application/octet-stream',
-        kind: file.type.startsWith('image/') ? 'image'
-          : file.type.startsWith('video/') ? 'video'
-          : file.type.startsWith('audio/') ? 'audio'
-          : 'other',
+        kind: file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'other',
         size: file.size,
         durationSeconds,
         status: 'ready',
@@ -125,26 +163,33 @@ export class VideoClipEditor extends LitElement {
 
       await saveFile(id, file);
       await saveAsset(asset);
-      this._fileMap.set(id, file);
       this._assets = [...this._assets, asset];
+
+      // Auto-add video to the single track
+      if (asset.kind === 'video' && durationSeconds) {
+        const clip: TimelineClip = {
+          id: crypto.randomUUID(),
+          assetId: asset.id,
+          trackId: 'V1',
+          offsetSeconds: this._project.timelineClips
+            .filter((c) => c.trackId === 'V1')
+            .reduce((max, c) => Math.max(max, c.offsetSeconds + Math.max(1, c.trimEnd - c.trimStart) + 0.5), 0),
+          trimStart: 0,
+          trimEnd: durationSeconds,
+          baseDuration: durationSeconds,
+        };
+        this._project = {
+          ...this._project,
+          timelineClips: [...this._project.timelineClips, clip],
+        };
+      }
     }
 
-    this._message = `导入了 ${files.length} 个素材`;
+    this._message = `已导入 ${files.length} 个文件`;
     await this._saveProject();
+    input.value = '';
     this.requestUpdate();
-  };
-
-  private _onDeleteAsset = async (e: CustomEvent) => {
-    const id = e.detail as string;
-    await deleteAssetFromDB(id);
-    this._assets = this._assets.filter((a) => a.id !== id);
-    this._project = {
-      ...this._project,
-      timelineClips: this._project.timelineClips.filter((c) => c.assetId !== id),
-    };
-    await this._saveProject();
-    this.requestUpdate();
-  };
+  }
 
   private _onUpdateClips = (e: CustomEvent) => {
     this._project = {
@@ -152,21 +197,6 @@ export class VideoClipEditor extends LitElement {
       timelineClips: e.detail as TimelineClip[],
       updatedAt: new Date().toISOString(),
     };
-    this.requestUpdate();
-  };
-
-  private _onUpdateTracks = (e: CustomEvent) => {
-    this._project = {
-      ...this._project,
-      tracks: e.detail as TimelineTrack[],
-      updatedAt: new Date().toISOString(),
-    };
-    this.requestUpdate();
-  };
-
-  private _onUpdateProject = (e: CustomEvent) => {
-    const patch = e.detail as Partial<ProjectState>;
-    this._project = { ...this._project, ...patch, updatedAt: new Date().toISOString() };
     this.requestUpdate();
   };
 
@@ -189,61 +219,48 @@ export class VideoClipEditor extends LitElement {
     this.requestUpdate();
   };
 
-  private _onSave = () => {
-    void this._saveProject().then(() => {
-      this._message = '项目已保存';
-      this.requestUpdate();
-    });
-  };
-
   render() {
+    const projectDuration = Math.max(20, Math.ceil(
+      this._project.timelineClips.reduce((max, c) =>
+        Math.max(max, c.offsetSeconds + Math.max(1, c.trimEnd - c.trimStart)), 20)
+    ));
+
     return html`
-      <div class="workspace-shell">
-        <asset-library
-          .assets=${this._assets}
-          @upload=${this._onUpload}
-          @delete-asset=${this._onDeleteAsset}
-          @message=${this._onMessage}
-        ></asset-library>
+      <div class="topbar">
+        <span class="brand">webVideoClip</span>
+        <span class="message">${this._message}</span>
+        <div class="actions">
+          <label class="primary" style="padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">
+            <input type="file" multiple accept="video/*,audio/*" @change=${this._handleUpload} />
+            导入视频
+          </label>
+        </div>
+      </div>
 
-        <preview-canvas
-          .project=${this._project}
-          .playheadSeconds=${this._playheadSeconds}
-          .isPlaying=${this._isPlaying}
-          .assets=${this._assets}
-          .busyAssetId=${this._busyAssetId}
-          @playhead-change=${this._onPlayheadChange}
-          @playing-change=${this._onPlayingChange}
-          @message=${this._onMessage}
-          @busy-change=${this._onBusyChange}
-          @update-clips=${this._onUpdateClips}
-          @save-project=${this._onSave}
-        ></preview-canvas>
+      <div class="main-area">
+        <div class="preview-section">
+          <preview-canvas
+            .project=${this._project}
+            .playheadSeconds=${this._playheadSeconds}
+            .isPlaying=${this._isPlaying}
+            .assets=${this._assets}
+            .busyAssetId=${this._busyAssetId}
+            @playhead-change=${this._onPlayheadChange}
+            @playing-change=${this._onPlayingChange}
+            @message=${this._onMessage}
+            @busy-change=${this._onBusyChange}
+            @update-clips=${this._onUpdateClips}
+          ></preview-canvas>
+        </div>
 
-        <inspector-panel
-          .project=${this._project}
-          .playheadSeconds=${this._playheadSeconds}
-          .assets=${this._assets}
-          .busyAssetId=${this._busyAssetId}
-          .message=${this._message}
-          @update-clips=${this._onUpdateClips}
-          @update-tracks=${this._onUpdateTracks}
-          @update-project=${this._onUpdateProject}
-          @message=${this._onMessage}
-          @busy-change=${this._onBusyChange}
-          @save-project=${this._onSave}
-        ></inspector-panel>
-
-        <div class="timeline-panel-wrapper">
+        <div class="timeline-section">
           <timeline-panel
             .project=${this._project}
             .playheadSeconds=${this._playheadSeconds}
             .assets=${this._assets}
             .isPlaying=${this._isPlaying}
             @update-clips=${this._onUpdateClips}
-            @update-tracks=${this._onUpdateTracks}
             @playhead-change=${this._onPlayheadChange}
-            @playing-change=${this._onPlayingChange}
             @message=${this._onMessage}
           ></timeline-panel>
         </div>

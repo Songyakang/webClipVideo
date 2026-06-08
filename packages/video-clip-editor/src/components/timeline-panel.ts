@@ -120,22 +120,6 @@ export class TimelinePanel extends LitElement {
     this.dispatchEvent(new CustomEvent('playhead-change', { detail: t, bubbles: true, composed: true }));
   }
 
-  private _addTrack(type: string) {
-    const prefix = type === 'video' ? 'V' : type === 'audio' ? 'A' : 'T';
-    const maxIdx = this.project.tracks
-      .filter((t) => t.type === type)
-      .reduce((m, t) => Math.max(m, parseInt(t.id.slice(1)) || 0), 0);
-    const newTrack: TimelineTrack = {
-      id: `${prefix}${maxIdx + 1}`,
-      label: `${prefix}${maxIdx + 1}`,
-      type: type as TimelineTrack['type'],
-      muted: false,
-      disabled: false,
-    };
-    const tracks = [...this.project.tracks, newTrack];
-    this.dispatchEvent(new CustomEvent('update-tracks', { detail: tracks, bubbles: true, composed: true }));
-  }
-
   private _handleLaneDrop(e: DragEvent, track: TimelineTrack) {
     e.preventDefault();
     if (track.type === 'text') return;
@@ -206,7 +190,7 @@ export class TimelinePanel extends LitElement {
 
     return html`
       <div class="panel-header">
-        <h2>多轨剪辑区 · ${this.project.timelineClips.length} 段</h2>
+        <h2>剪辑区 · ${this.project.timelineClips.length} 段</h2>
         <div class="actions">
           <div class="zoom-controls">
             <button @click=${() => { this._zoom = clamp(this._zoom - 0.25, MIN_ZOOM, MAX_ZOOM); }}>-</button>
@@ -214,9 +198,6 @@ export class TimelinePanel extends LitElement {
             <button @click=${() => { this._zoom = clamp(this._zoom + 0.25, MIN_ZOOM, MAX_ZOOM); }}>+</button>
           </div>
           <button @click=${() => this._splitAtPlayhead()}>切割 S</button>
-          <button @click=${() => this._addTrack('video')}>+ 视频轨</button>
-          <button @click=${() => this._addTrack('audio')}>+ 音频轨</button>
-          <button @click=${() => this._addTrack('text')}>+ 文本轨</button>
         </div>
       </div>
 
@@ -236,11 +217,14 @@ export class TimelinePanel extends LitElement {
           </div>
         </div>
 
-        ${this.project.tracks.map((track) => html`
+        ${(() => {
+          const track = this.project.tracks[0];
+          if (!track) return null;
+          return html`
           <div class="track-row">
-            <div class="track-label ${track.muted ? 'muted' : ''} ${track.disabled ? 'disabled' : ''}">
+            <div class="track-label">
               <strong>${track.label}</strong>
-              <small>${track.type === 'video' ? '视频' : track.type === 'audio' ? '音频' : '文本'}</small>
+              <small>视频</small>
             </div>
             <div class="track-lane"
               @dragover=${(e: DragEvent) => { e.preventDefault(); }}
@@ -254,12 +238,8 @@ export class TimelinePanel extends LitElement {
                   .filter((c) => c.trackId === track.id)
                   .map((clip) => {
                     const asset = this._assetMap.get(clip.assetId ?? '');
-                    const clipKind = track.type === 'text' ? 'text'
-                      : asset?.kind === 'video' ? 'video'
-                      : asset?.kind === 'audio' ? 'audio'
-                      : asset?.kind === 'image' ? 'image'
-                      : 'other';
-                    const title = track.type === 'text' ? (clip.text ?? '文字') : (asset?.title ?? '?');
+                    const clipKind = asset?.kind === 'video' ? 'video' : 'other';
+                    const title = asset?.title ?? '?';
                     const dur = clipDuration(clip);
 
                     return html`
@@ -277,12 +257,13 @@ export class TimelinePanel extends LitElement {
                     `;
                   })}
                 ${this.project.timelineClips.filter((c) => c.trackId === track.id).length === 0 ? html`
-                  <div class="empty-lane">拖素材到这里</div>
+                  <div class="empty-lane">拖素材或导入视频</div>
                 ` : null}
               </div>
             </div>
           </div>
-        `)}
+          `;
+        })()}
       </div>
     `;
   }
