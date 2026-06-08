@@ -1,0 +1,6 @@
+node_modules
+dist
+.DS_Store
+apps/server/data/assets.json
+apps/server/storage
+

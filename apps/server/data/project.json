@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "name": "默认项目",
+  "playheadSeconds": 0.52,
+  "tracks": [
+    {
+      "id": "V2",
+      "label": "V2",
+      "type": "video",
+      "muted": false,
+      "disabled": false
+    },
+    {
+      "id": "A1",
+      "label": "A1",
+      "type": "audio",
+      "muted": false,
+      "disabled": false
+    },
+    {
+      "id": "A2",
+      "label": "A2",
+      "type": "audio",
+      "muted": false,
+      "disabled": false
+    },
+    {
+      "id": "T1",
+      "label": "T1",
+      "type": "text",
+      "muted": false,
+      "disabled": false
+    }
+  ],
+  "timelineClips": [
+    {
+      "id": "ed69a095-2966-4f97-9f31-e3f002f90fd3",
+      "assetId": "9bcc16b2-e760-4803-8749-cdd19eb306e9",
+      "trackId": "V2",
+      "offsetSeconds": 0,
+      "trimStart": 0,
+      "trimEnd": 3.47,
+      "baseDuration": 141.8059410430839,
+      "scalePercent": 100,
+      "positionXPx": 0,
+      "positionYPx": 0,
+      "rotationDegrees": 0,
+      "flipX": false
+    },
+    {
+      "id": "b39447a1-dcec-42f3-8f8c-af45cb97c429",
+      "assetId": "9bcc16b2-e760-4803-8749-cdd19eb306e9",
+      "trackId": "V2",
+      "offsetSeconds": 6.12,
+      "trimStart": 3.47,
+      "trimEnd": 141.8059410430839,
+      "baseDuration": 141.8059410430839,
+      "scalePercent": 100,
+      "positionXPx": 0,
+      "positionYPx": 0,
+      "rotationDegrees": 0,
+      "flipX": false
+    }
+  ],
+  "updatedAt": "2026-06-05T10:10:05.364Z"
+}
