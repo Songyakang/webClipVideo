@@ -3,14 +3,9 @@
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "dev": "pnpm --parallel --filter @web-video/server --filter @web-video/web dev",
-    "dev:server": "pnpm --filter @web-video/server dev",
-    "dev:web": "pnpm --filter @web-video/web dev",
-    "pm2:server": "pnpm --filter @web-video/server pm2:start",
-    "pm2:server:stop": "pnpm --filter @web-video/server pm2:stop",
-    "pm2:server:restart": "pnpm --filter @web-video/server pm2:restart",
-    "pm2:server:logs": "pnpm --filter @web-video/server pm2:logs",
-    "build": "pnpm -r build"
+    "dev": "pnpm --filter @web-video/clip-editor dev",
+    "build": "pnpm --filter @web-video/clip-editor build",
+    "preview": "pnpm --filter @web-video/clip-editor preview"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

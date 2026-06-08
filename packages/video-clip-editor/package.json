@@ -1,0 +1,42 @@
+{
+  "name": "@web-video/clip-editor",
+  "version": "0.1.0",
+  "description": "Browser-based video clip editor Web Component, powered by Mediabunny",
+  "type": "module",
+  "main": "./dist/video-clip-editor.js",
+  "module": "./dist/video-clip-editor.js",
+  "types": "./dist/video-clip-editor.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/video-clip-editor.js",
+      "types": "./dist/video-clip-editor.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "video",
+    "editor",
+    "web-components",
+    "lit",
+    "mediabunny",
+    "video-clip"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "lit": "^3.0.0",
+    "mediabunny": "^1.46.0"
+  },
+  "devDependencies": {
+    "lit": "^3.2.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
+  }
+}
