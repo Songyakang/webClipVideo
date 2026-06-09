@@ -57,6 +57,56 @@ export const generateThumbnail = async (file: File, timeSeconds: number): Promis
   });
 };
 
+const THUMB_W = 160;
+
+export const createVideoSink = async (file: File) => {
+  const input = new Input({
+    source: new BlobSource(file),
+    formats: ALL_FORMATS,
+  });
+  const videoTrack = await input.getPrimaryVideoTrack();
+  if (!videoTrack) return null;
+  const sink = new VideoSampleSink(videoTrack);
+  const stats = await videoTrack.computePacketStats(100).catch(() => null);
+  const fps = stats?.averagePacketRate ?? 0;
+  return { sink, fps };
+};
+
+export const extractFramesFromSink = async (
+  sink: { getSample: (time: number) => Promise<any> },
+  startTime: number,
+  endTime: number,
+  frameCount: number,
+): Promise<{ timeSeconds: number; bitmap: ImageBitmap }[]> => {
+  const results: { timeSeconds: number; bitmap: ImageBitmap }[] = [];
+  const duration = endTime - startTime;
+
+  for (let i = 0; i < frameCount; i++) {
+    const timeSeconds = startTime + (i / Math.max(1, frameCount - 1)) * duration;
+    try {
+      const sample = await sink.getSample(timeSeconds);
+      if (!sample) continue;
+
+      const scale = Math.min(1, THUMB_W / sample.displayWidth);
+      const cvs = document.createElement('canvas');
+      cvs.width = Math.round(sample.displayWidth * scale);
+      cvs.height = Math.round(sample.displayHeight * scale);
+      const ctx = cvs.getContext('2d');
+      if (!ctx) { sample.close(); continue; }
+
+      sample.draw(ctx, 0, 0, cvs.width, cvs.height);
+      sample.close();
+
+      const bitmap = await createImageBitmap(cvs);
+      results.push({ timeSeconds, bitmap });
+    } catch (e) {
+      console.error('extractFramesFromSink: frame extraction failed', e);
+    }
+  }
+
+  return results;
+};
+
 export const transcodeToMp4 = async (
   file: File,
   onProgress?: (p: number) => void,

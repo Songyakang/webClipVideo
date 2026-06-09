@@ -5,7 +5,6 @@ import { loadProject, saveProject, listAssets, saveAsset, deleteAssetFromDB, sav
 import { computeDuration } from './lib/media.js';
 import './components/preview-canvas.js';
 import './components/timeline-panel.js';
-import './components/transport-bar.js';
 
 const SINGLE_TRACK = { id: 'V1', label: '视频轨', type: 'video' as const, muted: false, disabled: false };
 
@@ -24,11 +23,13 @@ export class VideoClipEditor extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
+      width: 100%;
       height: 100vh;
       background: #0a0e14;
       color: #c8d6e5;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       overflow: hidden;
+      box-sizing: border-box;
     }
 
     .topbar {
@@ -67,7 +68,7 @@ export class VideoClipEditor extends LitElement {
     .topbar button:hover { background: rgba(255,255,255,0.08); }
     .topbar button.primary { background: rgba(77,150,255,0.15); border-color: rgba(77,150,255,0.25); color: #4d96ff; }
     .topbar button.primary:hover { background: rgba(77,150,255,0.25); }
-    .topbar input[type="file"] { display: none; }
+    #file-picker { display: none; }
 
     .message {
       font-size: 12px;
@@ -80,10 +81,10 @@ export class VideoClipEditor extends LitElement {
     }
 
     .main-area {
-      flex: 1;
+      height: calc(100vh - 80px);
       display: flex;
       flex-direction: column;
-      min-height: 0;
+      overflow: hidden;
     }
 
     .preview-section {
@@ -91,10 +92,11 @@ export class VideoClipEditor extends LitElement {
       min-height: 0;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     .timeline-section {
-      border-top: 1px solid rgba(148,171,214,0.08);
+      flex-shrink: 0;
     }
   `;
 
@@ -132,9 +134,15 @@ export class VideoClipEditor extends LitElement {
     });
   }
 
+  private _openFilePicker() {
+    const input = this.renderRoot.querySelector('#file-picker') as HTMLInputElement | null;
+    input?.click();
+  }
+
   private async _handleUpload(e: Event) {
     const input = e.target as HTMLInputElement;
     const files = input.files;
+    console.log('Selected files:', input.files);
     if (!files?.length) return;
 
     this._message = '分析中...';
@@ -142,8 +150,13 @@ export class VideoClipEditor extends LitElement {
 
     for (const file of Array.from(files)) {
       let durationSeconds: number | undefined;
+      console.log('[upload] processing file:', file.name, 'type:', file.type, 'size:', file.size);
       if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
-        durationSeconds = await computeDuration(file).catch(() => undefined);
+        durationSeconds = await computeDuration(file).catch((e) => {
+          console.error('[upload] computeDuration failed:', e);
+          return undefined;
+        });
+        console.log('[upload] duration:', durationSeconds);
       }
 
       const id = crypto.randomUUID();
@@ -164,31 +177,34 @@ export class VideoClipEditor extends LitElement {
       await saveFile(id, file);
       await saveAsset(asset);
       this._assets = [...this._assets, asset];
+      console.log('[upload] asset saved, kind:', asset.kind, 'total assets:', this._assets.length);
 
-      // Auto-add video to the single track
+      // Auto-add video to the single track (replace existing)
       if (asset.kind === 'video' && durationSeconds) {
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
           assetId: asset.id,
           trackId: 'V1',
-          offsetSeconds: this._project.timelineClips
-            .filter((c) => c.trackId === 'V1')
-            .reduce((max, c) => Math.max(max, c.offsetSeconds + Math.max(1, c.trimEnd - c.trimStart) + 0.5), 0),
+          offsetSeconds: 0,
           trimStart: 0,
           trimEnd: durationSeconds,
           baseDuration: durationSeconds,
         };
         this._project = {
           ...this._project,
-          timelineClips: [...this._project.timelineClips, clip],
+          timelineClips: [clip],
         };
+        this._playheadSeconds = clip.offsetSeconds;
+        console.log('[upload] clip replaced, new clip:', clip.id);
+      } else {
+        console.log('[upload] clip NOT added. kind=', asset.kind, 'durationSeconds=', durationSeconds);
       }
     }
 
     this._message = `已导入 ${files.length} 个文件`;
     await this._saveProject();
-    input.value = '';
     this.requestUpdate();
+    console.log('[upload] done, assets:', this._assets.length, 'clips:', this._project.timelineClips.length);
   }
 
   private _onUpdateClips = (e: CustomEvent) => {
@@ -230,10 +246,8 @@ export class VideoClipEditor extends LitElement {
         <span class="brand">webVideoClip</span>
         <span class="message">${this._message}</span>
         <div class="actions">
-          <label class="primary" style="padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">
-            <input type="file" multiple accept="video/*,audio/*" @change=${this._handleUpload} />
-            导入视频
-          </label>
+          <input id="file-picker" type="file" multiple accept="video/*,audio/*" @change=${this._handleUpload} />
+          <button class="primary" @click=${this._openFilePicker}>导入视频</button>
         </div>
       </div>
 
