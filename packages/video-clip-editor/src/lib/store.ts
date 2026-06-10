@@ -3,8 +3,11 @@ import type { MediaAsset, ProjectState } from './types.js';
 const DB_NAME = 'video-clip-editor';
 const DB_VERSION = 1;
 
-const openDB = (): Promise<IDBDatabase> =>
-  new Promise((resolve, reject) => {
+let _dbPromise: Promise<IDBDatabase> | null = null;
+
+const openDB = (): Promise<IDBDatabase> => {
+  if (_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -19,21 +22,26 @@ const openDB = (): Promise<IDBDatabase> =>
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB open failed'));
   });
+  return _dbPromise;
+};
 
 const run = <T>(
   storeName: string,
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest<T> | void,
 ): Promise<T> =>
-  new Promise(async (resolve, reject) => {
-    const db = await openDB();
-    const tx = db.transaction(storeName, mode);
-    const store = tx.objectStore(storeName);
-    const result = fn(store);
-    tx.oncomplete = () => resolve((result as IDBRequest<T>)?.result);
-    tx.onerror = () => reject(tx.error);
+  new Promise((resolve, reject) => {
+    openDB()
+      .then((db) => {
+        const tx = db.transaction(storeName, mode);
+        const store = tx.objectStore(storeName);
+        const result = fn(store);
+        tx.oncomplete = () => resolve((result as IDBRequest<T>)?.result);
+        tx.onerror = () => reject(tx.error ?? new Error('Transaction failed'));
+      })
+      .catch(reject);
   });
 
 const runCursor = <T>(
@@ -41,21 +49,24 @@ const runCursor = <T>(
   fn: (store: IDBObjectStore) => IDBRequest<IDBCursorWithValue | null>,
   onItem: (cursor: IDBCursorWithValue) => T,
 ): Promise<T[]> =>
-  new Promise(async (resolve, reject) => {
-    const db = await openDB();
-    const tx = db.transaction(storeName, 'readonly');
-    const store = tx.objectStore(storeName);
-    const items: T[] = [];
-    const req = fn(store);
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        items.push(onItem(cursor));
-        cursor.continue();
-      }
-    };
-    tx.oncomplete = () => resolve(items);
-    tx.onerror = () => reject(tx.error);
+  new Promise((resolve, reject) => {
+    openDB()
+      .then((db) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const items: T[] = [];
+        const req = fn(store);
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (cursor) {
+            items.push(onItem(cursor));
+            cursor.continue();
+          }
+        };
+        tx.oncomplete = () => resolve(items);
+        tx.onerror = () => reject(tx.error ?? new Error('Cursor transaction failed'));
+      })
+      .catch(reject);
   });
 
 // --- Assets ---

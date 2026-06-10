@@ -35,6 +35,8 @@ export class PreviewCanvas extends LitElement {
   private _blobUrl: string | null = null;
   private _syncing = false;
   private _loadingVideo = false;
+  private _forceDisplayingFrame = false;
+  private _pendingSeeked: (() => void) | null = null;
 
   private get _assetMap() {
     return new Map(this.assets.map((a) => [a.id, a]));
@@ -64,8 +66,10 @@ export class PreviewCanvas extends LitElement {
     if (this._activeAssetId === asset.id && this._blobUrl) return;
     if (this._blobUrl) { URL.revokeObjectURL(this._blobUrl); this._blobUrl = null; }
     const file = await getFile(asset.files.original || asset.id);
-    console.log('[preview] _loadSrc got file:', !!file);
-    if (!file) return;
+    if (!file) {
+      this._activeAssetId = null;
+      return;
+    }
     this._blobUrl = URL.createObjectURL(file);
     this._activeAssetId = asset.id;
     console.log('[preview] _loadSrc videoRef:', !!this._videoRef.value);
@@ -96,6 +100,25 @@ export class PreviewCanvas extends LitElement {
       if (Math.abs(v.currentTime - st) > 0.2) {
         v.currentTime = st;
       }
+      if (v.paused) {
+        if (this._pendingSeeked) {
+          v.removeEventListener('seeked', this._pendingSeeked);
+        }
+        this._forceDisplayingFrame = true;
+        const handler = () => {
+          this._pendingSeeked = null;
+          v.play().then(() => {
+            requestAnimationFrame(() => {
+              v.pause();
+              this._forceDisplayingFrame = false;
+            });
+          }).catch(() => {
+            this._forceDisplayingFrame = false;
+          });
+        };
+        this._pendingSeeked = handler;
+        v.addEventListener('seeked', handler, { once: true });
+      }
     } finally {
       this._loadingVideo = false;
     }
@@ -111,27 +134,31 @@ export class PreviewCanvas extends LitElement {
         ${active ? html`
           <video
             ${ref(this._videoRef)}
-            controls
             muted
             preload="auto"
             @play=${() => {
+              if (this._forceDisplayingFrame) return;
               this.dispatchEvent(new CustomEvent('playing-change', { detail: true, bubbles: true, composed: true }));
             }}
             @pause=${() => {
+              if (this._forceDisplayingFrame) return;
               this.dispatchEvent(new CustomEvent('playing-change', { detail: false, bubbles: true, composed: true }));
             }}
             @timeupdate=${() => {
               const video = this._videoRef.value;
               if (!video || !this._activeClip) return;
               this._syncing = true;
-              const timelineTime = this._activeClip.offsetSeconds + (video.currentTime - this._activeClip.trimStart);
-              if (video.currentTime >= this._activeClip.trimEnd) {
-                video.pause();
-                this.dispatchEvent(new CustomEvent('playhead-change', { detail: this._activeClip.offsetSeconds + clipDuration(this._activeClip), bubbles: true, composed: true }));
-              } else {
-                this.dispatchEvent(new CustomEvent('playhead-change', { detail: Number(timelineTime.toFixed(3)), bubbles: true, composed: true }));
+              try {
+                const timelineTime = this._activeClip.offsetSeconds + (video.currentTime - this._activeClip.trimStart);
+                if (video.currentTime >= this._activeClip.trimEnd) {
+                  video.pause();
+                  this.dispatchEvent(new CustomEvent('playhead-change', { detail: this._activeClip.offsetSeconds + clipDuration(this._activeClip), bubbles: true, composed: true }));
+                } else {
+                  this.dispatchEvent(new CustomEvent('playhead-change', { detail: Number(timelineTime.toFixed(3)), bubbles: true, composed: true }));
+                }
+              } finally {
+                this._syncing = false;
               }
-              this._syncing = false;
             }}
           ></video>
         ` : html`
@@ -141,8 +168,27 @@ export class PreviewCanvas extends LitElement {
     `;
   }
 
+  togglePlay() {
+    const video = this._videoRef.value;
+    if (!video) return;
+    if (video.paused) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this._blobUrl) URL.revokeObjectURL(this._blobUrl);
+    if (this._pendingSeeked && this._videoRef.value) {
+      this._videoRef.value.removeEventListener('seeked', this._pendingSeeked);
+      this._pendingSeeked = null;
+    }
+    if (this._blobUrl) {
+      URL.revokeObjectURL(this._blobUrl);
+      this._blobUrl = null;
+    }
+    this._loadingVideo = false;
+    this._forceDisplayingFrame = false;
   }
 }

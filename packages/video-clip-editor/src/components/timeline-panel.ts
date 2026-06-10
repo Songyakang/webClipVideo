@@ -2,7 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { MediaAsset, ProjectState, TimelineClip, TimelineTrack } from '../lib/types.js';
 import { getFile } from '../lib/store.js';
-import { createVideoSink, extractFramesFromSink } from '../lib/media.js';
+import { createVideoSink, extractFramesFromSink, transcodeToMp4 } from '../lib/media.js';
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const clipDuration = (clip: TimelineClip) => Math.max(1, clip.trimEnd - clip.trimStart);
@@ -15,7 +15,6 @@ const formatSeconds = (s: number) => {
 const BASE_PPS = 50;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
-const FRAME_PX = 60;
 const RULER_H = 22;
 
 @customElement('timeline-panel')
@@ -29,8 +28,17 @@ export class TimelinePanel extends LitElement {
     .panel-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 16px; border-bottom: 1px solid rgba(148,171,214,0.06);
+      gap: 12px;
     }
-    .panel-header h2 { font-size: 13px; margin: 0; }
+    .panel-header h2 { font-size: 13px; margin: 0; white-space: nowrap; }
+    .header-center { display: flex; align-items: center; gap: 8px; }
+    .play-btn {
+      width: 32px; height: 32px; border-radius: 50%; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; border: 1px solid rgba(148,171,214,0.15);
+      background: rgba(255,255,255,0.04); color: #c8d6e5; cursor: pointer;
+    }
+    .play-btn:hover { background: rgba(255,255,255,0.08); }
     .actions { display: flex; gap: 6px; }
     button {
       padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(148,171,214,0.12);
@@ -62,7 +70,7 @@ export class TimelinePanel extends LitElement {
       background: #e0556a; z-index: 10; pointer-events: none;
     }
     .lane-canvas {
-      display: block; width: 100%; height: 100%; border-radius: 6px;
+      display: block; width: 100%; height: 100%; border-radius: 6px; outline: none;
     }
     .timeline-canvas-inner::-webkit-scrollbar { display: none; }
     .timeline-canvas-inner { scrollbar-width: none; }
@@ -158,6 +166,14 @@ export class TimelinePanel extends LitElement {
       trimStart: Number(splitPoint.toFixed(2)),
     };
 
+    // Split frame cache between the two new clips
+    const oldFrames = this._frameCache.get(clip.id);
+    if (oldFrames) {
+      this._frameCache.set(first.id, oldFrames.filter((f) => f.timeSeconds < splitPoint));
+      this._frameCache.set(second.id, oldFrames.filter((f) => f.timeSeconds >= splitPoint));
+      this._frameCache.delete(clip.id);
+    }
+
     const clips = this.project.timelineClips.flatMap((c) =>
       c.id === clip.id ? [first, second] : [c]
     );
@@ -217,39 +233,245 @@ export class TimelinePanel extends LitElement {
     });
   }
 
-  private _handleCanvasClick(e: MouseEvent) {
+  private _dragging = false;
+
+  private _dragEnd = () => { this._dragging = false; };
+
+  private _handleMouseDown(e: MouseEvent) {
+    this._dragging = true;
+    this._scrubToPosition(e);
+    window.addEventListener('mouseup', this._dragEnd, { once: true });
+  }
+
+  private _handleMouseMove(e: MouseEvent) {
+    const canvas = e.currentTarget as HTMLCanvasElement;
+    const y = e.clientY - canvas.getBoundingClientRect().top;
+    canvas.style.cursor = y < RULER_H ? 'col-resize' : 'default';
+    if (!this._dragging) return;
+    this._scrubToPosition(e);
+  }
+
+  private _handleMouseUp() {
+    this._dragging = false;
+  }
+
+  private _handleMouseLeave(e: MouseEvent) {
+    (e.currentTarget as HTMLCanvasElement).style.cursor = 'default';
+    this._dragging = false;
+  }
+
+  private _scrubToPosition(e: MouseEvent) {
     const canvas = e.currentTarget as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
-    const pps = this._pps;
     const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const clickedTime = x / pps;
-
-    if (y < RULER_H) {
-      const t = clamp(Number(clickedTime.toFixed(2)), 0, this._projectDuration);
-      this.dispatchEvent(new CustomEvent('playhead-change', { detail: t, bubbles: true, composed: true }));
-      return;
-    }
-
-    const track = this.project.tracks[0];
-    if (!track) return;
-
-    const clickedClip = this.project.timelineClips
-      .filter((c) => c.trackId === track.id)
-      .find((c) => {
-        const end = c.offsetSeconds + clipDuration(c);
-        return clickedTime >= c.offsetSeconds && clickedTime <= end;
-      });
-
-    if (clickedClip) {
-      this._selectedClipId = clickedClip.id;
-      this.requestUpdate();
-      return;
-    }
-
-    const t = clamp(Number(clickedTime.toFixed(2)), 0, this._projectDuration);
+    const t = clamp(Number((x / this._pps).toFixed(2)), 0, this._projectDuration);
     this.dispatchEvent(new CustomEvent('playhead-change', { detail: t, bubbles: true, composed: true }));
+
+    // Select / deselect clip under cursor
+    const track = this.project.tracks[0];
+    if (track) {
+      const clickedClip = this.project.timelineClips
+        .filter((c) => c.trackId === track.id)
+        .find((c) => {
+          const end = c.offsetSeconds + clipDuration(c);
+          return t >= c.offsetSeconds && t <= end;
+        });
+      this._selectedClipId = clickedClip ? clickedClip.id : null;
+    }
+    this.requestUpdate();
   }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._drawRAF) cancelAnimationFrame(this._drawRAF);
+    // Release ImageBitmaps
+    for (const frames of this._frameCache.values()) {
+      for (const f of frames) f.bitmap.close();
+    }
+    this._frameCache.clear();
+  }
+
+  private _deleteSelectedClip = () => {
+    if (!this._selectedClipId) return;
+    const clips = this.project.timelineClips.filter((c) => c.id !== this._selectedClipId);
+    const oldFrames = this._frameCache.get(this._selectedClipId);
+    if (oldFrames) {
+      for (const f of oldFrames) f.bitmap.close();
+      this._frameCache.delete(this._selectedClipId);
+    }
+    this._selectedClipId = null;
+    this.dispatchEvent(new CustomEvent('update-clips', { detail: clips, bubbles: true, composed: true }));
+    // Jump to first remaining clip, or 0 if none
+    const firstClip = clips[0];
+    this.dispatchEvent(new CustomEvent('playhead-change', {
+      detail: firstClip ? firstClip.offsetSeconds : 0,
+      bubbles: true,
+      composed: true,
+    }));
+    const lane = this.renderRoot.querySelector('.timeline-canvas-inner');
+    if (lane) lane.scrollLeft = 0;
+  };
+
+  private _exportClip = () => {
+    const selectedClip = this._selectedClipId
+      ? this.project.timelineClips.find((c) => c.id === this._selectedClipId)
+      : null;
+    const clipsToExport = selectedClip ? [selectedClip] : this.project.timelineClips;
+    if (clipsToExport.length === 0) return;
+
+    const asset = this._assetMap.get(clipsToExport[0].assetId ?? '');
+    if (!asset) return;
+
+    this.dispatchEvent(new CustomEvent('message', { detail: '导出中...', bubbles: true, composed: true }));
+
+    getFile(asset.files.original || asset.id).then(async (file) => {
+      if (!file) return;
+
+      if (clipsToExport.length === 1) {
+        // Single clip: export trimmed
+        const c = clipsToExport[0];
+        const result = await transcodeToMp4(file, {
+          trimStart: c.trimStart, trimEnd: c.trimEnd,
+          onProgress: (p) => {
+            this.dispatchEvent(new CustomEvent('message', { detail: `导出中 ${Math.round(p * 100)}%`, bubbles: true, composed: true }));
+          },
+        });
+        this._downloadResult(result, `${asset.title}-clip.mp4`);
+        this.dispatchEvent(new CustomEvent('message', { detail: '导出完成', bubbles: true, composed: true }));
+      } else {
+        // Multiple clips: export as ZIP
+        const entries: { name: string; data: Uint8Array }[] = [];
+        for (let i = 0; i < clipsToExport.length; i++) {
+          const c = clipsToExport[i];
+          this.dispatchEvent(new CustomEvent('message', {
+            detail: `导出中 ${i + 1}/${clipsToExport.length} ...`,
+            bubbles: true, composed: true,
+          }));
+          try {
+            const name = `${asset.title}-${String(i + 1).padStart(2, '0')}.mp4`;
+            const data = await transcodeToMp4(file, { trimStart: c.trimStart, trimEnd: c.trimEnd });
+            entries.push({ name, data });
+          } catch (e) {
+            console.error('[export] clip', i, 'failed:', e);
+          }
+        }
+        if (entries.length === 0) {
+          this.dispatchEvent(new CustomEvent('message', { detail: '导出失败', bubbles: true, composed: true }));
+          return;
+        }
+        const zip = this._createZip(entries);
+        this._downloadResult(zip, `${asset.title}-clips.zip`);
+        this.dispatchEvent(new CustomEvent('message', { detail: '导出完成', bubbles: true, composed: true }));
+      }
+    }).catch((e) => {
+      console.error('[export] failed:', e);
+      this.dispatchEvent(new CustomEvent('message', { detail: '导出失败', bubbles: true, composed: true }));
+    });
+  };
+
+  private _crc32(data: Uint8Array): number {
+    let crc = 0xffffffff;
+    for (let i = 0; i < data.byteLength; i++) {
+      crc ^= data[i];
+      for (let j = 0; j < 8; j++) {
+        crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+      }
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  private _createZip(entries: { name: string; data: Uint8Array }[]): Uint8Array {
+    const encoder = new TextEncoder();
+    const parts: Uint8Array[] = [];
+    const cdEntries: Uint8Array[] = [];
+    let cdOffset = 0;
+
+    for (const { name, data } of entries) {
+      const crc32 = this._crc32(data);
+      const nameBytes = encoder.encode(name);
+      const header = new Uint8Array(30);
+      const view = new DataView(header.buffer);
+      view.setUint32(0, 0x04034b50, true);
+      view.setUint16(8, 0, true);              // compression: store
+      view.setUint32(14, crc32, true);
+      view.setUint32(18, data.byteLength, true);
+      view.setUint32(22, data.byteLength, true);
+      view.setUint16(26, nameBytes.length, true);
+      view.setUint16(28, 0, true);
+
+      parts.push(header, nameBytes, data);
+
+      const cdEntry = new Uint8Array(46 + nameBytes.length);
+      const cdv = new DataView(cdEntry.buffer);
+      cdv.setUint32(0, 0x02014b50, true);
+      cdv.setUint16(4, 20, true);
+      cdv.setUint16(6, 10, true);
+      cdv.setUint16(8, 0, true);
+      cdv.setUint16(10, 0, true);
+      cdv.setUint32(12, 0, true);
+      cdv.setUint32(16, crc32, true);
+      cdv.setUint32(20, data.byteLength, true);
+      cdv.setUint32(24, data.byteLength, true);
+      cdv.setUint16(28, nameBytes.length, true);
+      cdv.setUint16(30, 0, true);
+      cdv.setUint16(32, 0, true);
+      cdv.setUint16(34, 0, true);
+      cdv.setUint16(36, 0, true);
+      cdv.setUint32(38, 0, true);
+      cdv.setUint32(42, cdOffset, true);
+      cdEntry.set(nameBytes, 46);
+      cdEntries.push(cdEntry);
+      cdOffset += 30 + nameBytes.length + data.byteLength;
+    }
+
+    const cd = new Uint8Array(cdEntries.reduce((s, e) => s + e.byteLength, 0));
+    let off = 0;
+    for (const e of cdEntries) {
+      cd.set(e, off);
+      off += e.byteLength;
+    }
+    parts.push(cd);
+
+    const eocd = new Uint8Array(22);
+    const ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(8, entries.length, true);  // entries on this disk
+    ev.setUint16(10, entries.length, true); // total entries
+    ev.setUint32(12, cd.byteLength, true);  // central directory size
+    ev.setUint32(16, cdOffset, true);       // central directory offset
+    parts.push(eocd);
+
+    const totalLen = parts.reduce((s, p) => s + p.byteLength, 0);
+    const zip = new Uint8Array(totalLen);
+    let pos = 0;
+    for (const p of parts) {
+      zip.set(p, pos);
+      pos += p.byteLength;
+    }
+    return zip;
+  }
+
+  private _downloadResult(buffer: Uint8Array, filename: string) {
+    const blob = new Blob([buffer as BlobPart], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private _onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      this._deleteSelectedClip();
+    } else if (e.key === 's' || e.key === 'S') {
+      this._splitAtPlayhead();
+    }
+  };
+
+  private _togglePlay = () => {
+    this.dispatchEvent(new CustomEvent('toggle-playback', { bubbles: true, composed: true }));
+  };
 
   private _handleWheel(e: WheelEvent) {
     if (!e.ctrlKey && !e.metaKey) return;
@@ -302,26 +524,48 @@ export class TimelinePanel extends LitElement {
     ctx.lineTo(w, RULER_H);
     ctx.stroke();
 
-    // Draw time ticks
+    // Draw time ticks (ruler labels + grid lines through filmstrip)
     const tickStep = pps >= 120 ? 1 : pps >= 60 ? 2 : pps >= 30 ? 5 : 10;
     const minorStep = tickStep / 10;
     const minorCount = Math.floor(this._projectDuration / minorStep) + 1;
 
-    // Minor ticks (short lines)
-    ctx.strokeStyle = 'rgba(148,171,214,0.12)';
+    // Minor grid lines (through ruler + filmstrip)
+    ctx.strokeStyle = 'rgba(148,171,214,0.04)';
     ctx.lineWidth = 1;
     for (let i = 0; i < minorCount; i++) {
       const t = i * minorStep;
-      if (Math.abs(t % tickStep) < 0.001) continue; // skip major positions
+      if (Math.abs(t % tickStep) < 0.001) continue;
       const x = t * pps;
       ctx.beginPath();
-      ctx.moveTo(x, 16);
-      ctx.lineTo(x, 21);
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, h);
       ctx.stroke();
     }
 
-    // Major ticks (longer lines + labels)
+    // Minor tick marks (short lines in ruler)
+    ctx.strokeStyle = 'rgba(148,171,214,0.12)';
+    for (let i = 0; i < minorCount; i++) {
+      const t = i * minorStep;
+      if (Math.abs(t % tickStep) < 0.001) continue;
+      const x = t * pps;
+      ctx.beginPath();
+      ctx.moveTo(x, 16);
+      ctx.lineTo(x, RULER_H);
+      ctx.stroke();
+    }
+
+    // Major grid lines (through entire height)
     const tickCount = Math.floor(this._projectDuration / tickStep) + 1;
+    ctx.strokeStyle = 'rgba(148,171,214,0.06)';
+    for (let i = 0; i < tickCount; i++) {
+      const x = i * tickStep * pps;
+      ctx.beginPath();
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+
+    // Major tick marks + labels (in ruler)
     ctx.strokeStyle = 'rgba(148,171,214,0.2)';
     ctx.fillStyle = '#6b7d99';
     ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
@@ -330,7 +574,7 @@ export class TimelinePanel extends LitElement {
       const x = t * pps;
       ctx.beginPath();
       ctx.moveTo(x, 13);
-      ctx.lineTo(x, 22);
+      ctx.lineTo(x, RULER_H);
       ctx.stroke();
       ctx.fillText(formatSeconds(t), x + 3, 12);
     }
@@ -433,6 +677,13 @@ export class TimelinePanel extends LitElement {
     return html`
       <div class="panel-header">
         <h2>剪辑区 · ${this.project.timelineClips.length} 段</h2>
+        <div class="header-center">
+          <button class="play-btn" @click=${this._togglePlay}
+            title=${this.isPlaying ? '暂停' : '播放'}>
+            ${this.isPlaying ? '⏸' : '▶'}
+          </button>
+          <span style="font-size:11px;color:#6b7d99">${this.isPlaying ? '播放中' : '已暂停'}</span>
+        </div>
         <div class="actions">
           <div class="zoom-controls">
             <button @click=${() => { this._zoom = clamp(this._zoom - 0.25, MIN_ZOOM, MAX_ZOOM); }}>-</button>
@@ -440,12 +691,17 @@ export class TimelinePanel extends LitElement {
             <button @click=${() => { this._zoom = clamp(this._zoom + 0.25, MIN_ZOOM, MAX_ZOOM); }}>+</button>
           </div>
           <button @click=${() => this._splitAtPlayhead()}>切割 S</button>
+          <button @click=${this._deleteSelectedClip}
+            ?disabled=${!this._selectedClipId}>删除 Del</button>
+          <button @click=${this._exportClip}>
+            ${this._selectedClipId ? '导出选中' : '导出全部'}
+          </button>
         </div>
       </div>
 
       <div class="subheader">
         <span>${this.project.timelineClips.length} 段片段</span>
-        <span>Ctrl+滚轮缩放 · 拖素材入轨 · 按 S 切割</span>
+        <span>Ctrl+滚轮缩放 · S切割 · Del删除 · 导出</span>
       </div>
 
       <div class="track-list">
@@ -466,8 +722,13 @@ export class TimelinePanel extends LitElement {
             >
               <div class="timeline-canvas-inner">
                 <canvas class="lane-canvas"
-                  @click=${(e: MouseEvent) => this._handleCanvasClick(e)}
-                  @wheel=${(e: WheelEvent) => this._handleWheel(e)}></canvas>
+                  tabindex="0"
+                  @mousedown=${(e: MouseEvent) => this._handleMouseDown(e)}
+                  @mousemove=${(e: MouseEvent) => this._handleMouseMove(e)}
+                  @mouseup=${this._handleMouseUp}
+                  @mouseleave=${this._handleMouseLeave}
+                  @wheel=${(e: WheelEvent) => this._handleWheel(e)}
+                  @keydown=${this._onKeyDown}></canvas>
                 <div class="playhead" style="left:${this.playheadSeconds * pps}px"></div>
               </div>
             </div>

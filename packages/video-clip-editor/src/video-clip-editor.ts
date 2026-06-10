@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { MediaAsset, TimelineClip, ProjectState } from './lib/types.js';
-import { loadProject, saveProject, listAssets, saveAsset, deleteAssetFromDB, saveFile } from './lib/store.js';
+import { loadProject, saveProject, listAssets, saveAsset, saveFile } from './lib/store.js';
 import { computeDuration } from './lib/media.js';
 import './components/preview-canvas.js';
 import './components/timeline-panel.js';
@@ -142,13 +142,13 @@ export class VideoClipEditor extends LitElement {
   private async _handleUpload(e: Event) {
     const input = e.target as HTMLInputElement;
     const files = input.files;
-    console.log('Selected files:', input.files);
     if (!files?.length) return;
 
     this._message = '分析中...';
     this.requestUpdate();
 
-    for (const file of Array.from(files)) {
+    try {
+      for (const file of Array.from(files)) {
       let durationSeconds: number | undefined;
       console.log('[upload] processing file:', file.name, 'type:', file.type, 'size:', file.size);
       if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
@@ -201,10 +201,14 @@ export class VideoClipEditor extends LitElement {
       }
     }
 
-    this._message = `已导入 ${files.length} 个文件`;
-    await this._saveProject();
-    this.requestUpdate();
-    console.log('[upload] done, assets:', this._assets.length, 'clips:', this._project.timelineClips.length);
+      this._message = `已导入 ${files.length} 个文件`;
+      await this._saveProject();
+      this.requestUpdate();
+    } catch (e) {
+      console.error('[upload] failed:', e);
+      this._message = '导入失败，请重试';
+      this.requestUpdate();
+    }
   }
 
   private _onUpdateClips = (e: CustomEvent) => {
@@ -214,10 +218,12 @@ export class VideoClipEditor extends LitElement {
       updatedAt: new Date().toISOString(),
     };
     this.requestUpdate();
+    this._saveProject().catch(() => {});
   };
 
   private _onPlayheadChange = (e: CustomEvent) => {
     this._playheadSeconds = e.detail as number;
+    this.requestUpdate();
   };
 
   private _onPlayingChange = (e: CustomEvent) => {
@@ -233,6 +239,11 @@ export class VideoClipEditor extends LitElement {
   private _onBusyChange = (e: CustomEvent) => {
     this._busyAssetId = e.detail as string | null;
     this.requestUpdate();
+  };
+
+  private _onTogglePlayback = () => {
+    const preview = this.renderRoot.querySelector('preview-canvas') as any;
+    preview?.togglePlay();
   };
 
   render() {
@@ -276,6 +287,7 @@ export class VideoClipEditor extends LitElement {
             @update-clips=${this._onUpdateClips}
             @playhead-change=${this._onPlayheadChange}
             @message=${this._onMessage}
+            @toggle-playback=${this._onTogglePlayback}
           ></timeline-panel>
         </div>
       </div>

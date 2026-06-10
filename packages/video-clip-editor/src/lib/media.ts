@@ -109,7 +109,7 @@ export const extractFramesFromSink = async (
 
 export const transcodeToMp4 = async (
   file: File,
-  onProgress?: (p: number) => void,
+  options?: { trimStart?: number; trimEnd?: number; onProgress?: (p: number) => void },
 ): Promise<Uint8Array> => {
   const input = new Input({
     source: new BlobSource(file),
@@ -124,10 +124,13 @@ export const transcodeToMp4 = async (
   const conversion = await Conversion.init({
     input,
     output,
+    trim: options?.trimStart != null || options?.trimEnd != null
+      ? { start: options.trimStart, end: options.trimEnd }
+      : undefined,
   });
 
-  if (onProgress) {
-    conversion.onProgress = onProgress;
+  if (options?.onProgress) {
+    conversion.onProgress = options.onProgress;
   }
 
   await conversion.execute();
