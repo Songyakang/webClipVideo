@@ -1,8 +1,9 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { MediaAsset, ProjectState, TimelineClip, TimelineTrack } from '../lib/types.js';
-import { getFile } from '../lib/store.js';
+import { getFile, saveFile, saveAsset } from '../lib/store.js';
 import { createVideoSink, extractFramesFromSink, transcodeToMp4 } from '../lib/media.js';
+import { concatWithWebCodecs } from '../lib/recoder.js';
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const clipDuration = (clip: TimelineClip) => Math.max(1, clip.trimEnd - clip.trimStart);
@@ -46,6 +47,10 @@ export class TimelinePanel extends LitElement {
       font-size: 11px; transition: background 0.15s;
     }
     button:hover { background: rgba(255,255,255,0.08); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: rgba(77,150,255,0.15); border-color: rgba(77,150,255,0.25); color: #4d96ff; }
+    button.primary:hover { background: rgba(77,150,255,0.25); }
+    button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
     .subheader { display: flex; justify-content: space-between; padding: 6px 16px; font-size: 11px; color: #6b7d99; }
     .track-list { flex: 1; overflow-y: auto; overflow-x: auto; }
     .track-row { display: flex; min-height: 48px; border-bottom: 1px solid rgba(148,171,214,0.04); }
@@ -83,10 +88,17 @@ export class TimelinePanel extends LitElement {
   @property({ type: Boolean }) isPlaying = false;
 
   @property({ type: Number }) _zoom = 1;
-  @property({ type: String }) _selectedClipId: string | null = null;
 
+  @state() _selectedClipIds = new Set<string>();
   private _frameCache = new Map<string, { timeSeconds: number; bitmap: ImageBitmap }[]>();
   private _extracting = new Set<string>();
+  private _merging = false;
+
+  private _dragging = false;
+
+  // Clip dragging state
+  private _clipDrag: { clipId: string; startOffset: number; mouseStartX: number; moved: boolean } | null = null;
+  private _dragOffsetSeconds = 0;
 
   private get _assetMap() {
     return new Map(this.assets.map((a) => [a.id, a]));
@@ -137,7 +149,7 @@ export class TimelinePanel extends LitElement {
 
     const clips = [...this.project.timelineClips, clip];
     this.dispatchEvent(new CustomEvent('update-clips', { detail: clips, bubbles: true, composed: true }));
-    this._selectedClipId = clip.id;
+    this._selectedClipIds = new Set([clip.id]);
   }
 
   private _splitAtPlayhead() {
@@ -156,14 +168,15 @@ export class TimelinePanel extends LitElement {
       return;
     }
 
+    const roundedSplit = Number(splitPoint.toFixed(2));
     const first: TimelineClip = {
       ...clip, id: crypto.randomUUID(),
-      trimEnd: Number(splitPoint.toFixed(2)),
+      trimEnd: roundedSplit,
     };
     const second: TimelineClip = {
       ...clip, id: crypto.randomUUID(),
-      offsetSeconds: this.playheadSeconds,
-      trimStart: Number(splitPoint.toFixed(2)),
+      offsetSeconds: clip.offsetSeconds + (roundedSplit - clip.trimStart),
+      trimStart: roundedSplit,
     };
 
     // Split frame cache between the two new clips
@@ -178,7 +191,7 @@ export class TimelinePanel extends LitElement {
       c.id === clip.id ? [first, second] : [c]
     );
     this.dispatchEvent(new CustomEvent('update-clips', { detail: clips, bubbles: true, composed: true }));
-    this._selectedClipId = second.id;
+    this._selectedClipIds = new Set([second.id]);
   }
 
   private get _laneHeight() {
@@ -186,8 +199,6 @@ export class TimelinePanel extends LitElement {
   }
 
   updated(_changedProperties: Map<string, unknown>) {
-    console.log('[timeline] updated, clips:', this.project.timelineClips.length,
-      'assets:', this.assets.length, 'zoom:', this._zoom);
     this._drawCanvas();
 
     // Extract frames once at max density for each clip
@@ -219,7 +230,6 @@ export class TimelinePanel extends LitElement {
         const { sink, fps } = result;
 
         const frameCount = Math.max(3, Math.round(dur * 10));
-        console.log('[timeline] extracting frames, videoFPS:', fps, 'count:', frameCount);
 
         return extractFramesFromSink(sink, clip.trimStart, clip.trimEnd, frameCount).then((frames) => {
           this._frameCache.set(clip.id, frames);
@@ -233,30 +243,128 @@ export class TimelinePanel extends LitElement {
     });
   }
 
-  private _dragging = false;
-
-  private _dragEnd = () => { this._dragging = false; };
+  private _getClipAtPosition(t: number): TimelineClip | undefined {
+    const track = this.project.tracks[0];
+    if (!track) return undefined;
+    return this.project.timelineClips
+      .filter((c) => c.trackId === track.id)
+      .find((c) => {
+        const end = c.offsetSeconds + clipDuration(c);
+        return t >= c.offsetSeconds && t <= end;
+      });
+  }
 
   private _handleMouseDown(e: MouseEvent) {
+    const canvas = e.currentTarget as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const t = clamp(Number((x / this._pps).toFixed(2)), 0, this._projectDuration);
+
+    // Click below ruler = clip area, check if clicking on a clip to start drag
+    if (y > RULER_H) {
+      const clickedClip = this._getClipAtPosition(t);
+      if (clickedClip) {
+        this._clipDrag = {
+          clipId: clickedClip.id,
+          startOffset: clickedClip.offsetSeconds,
+          mouseStartX: e.clientX,
+          moved: false,
+        };
+        this._dragOffsetSeconds = 0;
+
+        // Select the clicked clip
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl) {
+          const next = new Set(this._selectedClipIds);
+          if (next.has(clickedClip.id)) next.delete(clickedClip.id);
+          else next.add(clickedClip.id);
+          this._selectedClipIds = next;
+        } else if (!this._selectedClipIds.has(clickedClip.id)) {
+          this._selectedClipIds = new Set([clickedClip.id]);
+        }
+        this.requestUpdate();
+        window.addEventListener('mouseup', this._onMouseUp, { once: true });
+        return;
+      }
+    }
+
+    // No clip to drag — scrub playhead
     this._dragging = true;
     this._scrubToPosition(e);
-    window.addEventListener('mouseup', this._dragEnd, { once: true });
+    window.addEventListener('mouseup', this._onMouseUp, { once: true });
   }
 
   private _handleMouseMove(e: MouseEvent) {
     const canvas = e.currentTarget as HTMLCanvasElement;
+
+    if (this._clipDrag) {
+      const dx = e.clientX - this._clipDrag.mouseStartX;
+      if (Math.abs(dx) > 3) {
+        this._clipDrag.moved = true;
+        canvas.style.cursor = 'grabbing';
+      }
+      if (this._clipDrag.moved) {
+        this._dragOffsetSeconds = Number((dx / this._pps).toFixed(2));
+        this._drawCanvas();
+      }
+      return;
+    }
+
     const y = e.clientY - canvas.getBoundingClientRect().top;
-    canvas.style.cursor = y < RULER_H ? 'col-resize' : 'default';
+    if (y > RULER_H && !this._clipDrag) {
+      const x = e.clientX - canvas.getBoundingClientRect().left;
+      const t = clamp(Number((x / this._pps).toFixed(2)), 0, this._projectDuration);
+      const hoveredClip = this._getClipAtPosition(t);
+      canvas.style.cursor = hoveredClip ? 'grab' : 'default';
+    } else {
+      canvas.style.cursor = y < RULER_H ? 'col-resize' : 'default';
+    }
     if (!this._dragging) return;
     this._scrubToPosition(e);
   }
 
-  private _handleMouseUp() {
+  private _onMouseUp = () => {
+    if (this._clipDrag) {
+      if (this._clipDrag.moved) {
+        const newOffset = clamp(
+          Number((this._clipDrag.startOffset + this._dragOffsetSeconds).toFixed(2)),
+          0,
+          this._projectDuration,
+        );
+        const clips = this.project.timelineClips.map((c) => {
+          if (c.id === this._clipDrag!.clipId) {
+            return { ...c, offsetSeconds: newOffset };
+          }
+          return c;
+        });
+        this.dispatchEvent(new CustomEvent('update-clips', { detail: clips, bubbles: true, composed: true }));
+        // Jump playhead to the dragged clip's new position so preview doesn't go black
+        this.dispatchEvent(new CustomEvent('playhead-change', {
+          detail: newOffset,
+          bubbles: true,
+          composed: true,
+        }));
+      }
+      this._clipDrag = null;
+      this._dragOffsetSeconds = 0;
+      this._drawCanvas();
+    }
     this._dragging = false;
+  };
+
+  private _handleMouseUp() {
+    // handled by _onMouseUp via window listener
   }
 
   private _handleMouseLeave(e: MouseEvent) {
-    (e.currentTarget as HTMLCanvasElement).style.cursor = 'default';
+    const canvas = e.currentTarget as HTMLCanvasElement;
+    canvas.style.cursor = 'default';
+    if (this._clipDrag) {
+      this._clipDrag = null;
+      this._dragOffsetSeconds = 0;
+      this._drawCanvas();
+    }
     this._dragging = false;
   }
 
@@ -268,15 +376,23 @@ export class TimelinePanel extends LitElement {
     this.dispatchEvent(new CustomEvent('playhead-change', { detail: t, bubbles: true, composed: true }));
 
     // Select / deselect clip under cursor
-    const track = this.project.tracks[0];
-    if (track) {
-      const clickedClip = this.project.timelineClips
-        .filter((c) => c.trackId === track.id)
-        .find((c) => {
-          const end = c.offsetSeconds + clipDuration(c);
-          return t >= c.offsetSeconds && t <= end;
-        });
-      this._selectedClipId = clickedClip ? clickedClip.id : null;
+    const clickedClip = this._getClipAtPosition(t);
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (clickedClip) {
+      if (ctrl) {
+        // Toggle selection
+        const next = new Set(this._selectedClipIds);
+        if (next.has(clickedClip.id)) {
+          next.delete(clickedClip.id);
+        } else {
+          next.add(clickedClip.id);
+        }
+        this._selectedClipIds = next;
+      } else {
+        this._selectedClipIds = new Set([clickedClip.id]);
+      }
+    } else if (!ctrl) {
+      this._selectedClipIds = new Set();
     }
     this.requestUpdate();
   }
@@ -291,17 +407,23 @@ export class TimelinePanel extends LitElement {
     this._frameCache.clear();
   }
 
-  private _deleteSelectedClip = () => {
-    if (!this._selectedClipId) return;
-    const clips = this.project.timelineClips.filter((c) => c.id !== this._selectedClipId);
-    const oldFrames = this._frameCache.get(this._selectedClipId);
-    if (oldFrames) {
-      for (const f of oldFrames) f.bitmap.close();
-      this._frameCache.delete(this._selectedClipId);
+  private _deleteSelectedClips = () => {
+    if (this._selectedClipIds.size === 0) return;
+
+    const clips = this.project.timelineClips.filter((c) => !this._selectedClipIds.has(c.id));
+
+    // Release frame cache for deleted clips
+    for (const id of this._selectedClipIds) {
+      const oldFrames = this._frameCache.get(id);
+      if (oldFrames) {
+        for (const f of oldFrames) f.bitmap.close();
+        this._frameCache.delete(id);
+      }
     }
-    this._selectedClipId = null;
+
+    this._selectedClipIds = new Set();
     this.dispatchEvent(new CustomEvent('update-clips', { detail: clips, bubbles: true, composed: true }));
-    // Jump to first remaining clip, or 0 if none
+
     const firstClip = clips[0];
     this.dispatchEvent(new CustomEvent('playhead-change', {
       detail: firstClip ? firstClip.offsetSeconds : 0,
@@ -312,10 +434,127 @@ export class TimelinePanel extends LitElement {
     if (lane) lane.scrollLeft = 0;
   };
 
+  private _mergeSelectedClips = async () => {
+    if (this._selectedClipIds.size < 2 || this._merging) return;
+
+    const selectedClips = this.project.timelineClips
+      .filter((c) => this._selectedClipIds.has(c.id))
+      .sort((a, b) => a.offsetSeconds - b.offsetSeconds);
+
+    if (selectedClips.length < 2) return;
+
+    this._merging = true;
+    this.dispatchEvent(new CustomEvent('message', { detail: '合并中...', bubbles: true, composed: true }));
+    this.requestUpdate();
+
+    try {
+      // Transcode each clip with its trim range
+      const transcoded: Uint8Array[] = [];
+      for (let i = 0; i < selectedClips.length; i++) {
+        const clip = selectedClips[i];
+        const asset = this._assetMap.get(clip.assetId ?? '');
+        if (!asset) throw new Error('找不到资源');
+
+        this.dispatchEvent(new CustomEvent('message', {
+          detail: `合并中 ${i + 1}/${selectedClips.length} ...`,
+          bubbles: true, composed: true,
+        }));
+
+        const file = await getFile(asset.files.original || asset.id);
+        if (!file) throw new Error('找不到文件');
+
+        const data = await transcodeToMp4(file, {
+          trimStart: clip.trimStart,
+          trimEnd: clip.trimEnd,
+        });
+        transcoded.push(data);
+      }
+
+      // Concatenate all MP4 data via WebCodecs pipeline
+      this.dispatchEvent(new CustomEvent('message', { detail: '拼接中...', bubbles: true, composed: true }));
+      const merged = await concatWithWebCodecs(transcoded, (p) => {
+        if (p.phase === 'decode') {
+          this.dispatchEvent(new CustomEvent('message', {
+            detail: `解码中 ${p.clip}/${p.totalClips} (${Math.round(p.percent)}%)`,
+            bubbles: true, composed: true,
+          }));
+        } else if (p.phase === 'encode') {
+          this.dispatchEvent(new CustomEvent('message', {
+            detail: `编码中 ${Math.round(p.percent)}%`,
+            bubbles: true, composed: true,
+          }));
+        }
+      });
+
+      // Save as new file in IndexedDB
+      const mergedId = crypto.randomUUID();
+      const mergedBlob = new Blob([merged as BlobPart], { type: 'video/mp4' });
+      const mergedFile = new File([mergedBlob], 'merged.mp4', { type: 'video/mp4' });
+      await saveFile(mergedId, mergedFile);
+
+      // Calculate total duration from the transcoded clips
+      const totalDuration = selectedClips.reduce((sum, c) => sum + clipDuration(c), 0);
+
+      // Create new asset
+      const newAsset: MediaAsset = {
+        id: mergedId,
+        title: '合并片段',
+        originalName: 'merged.mp4',
+        mimeType: 'video/mp4',
+        kind: 'video',
+        size: merged.byteLength,
+        durationSeconds: totalDuration,
+        status: 'ready',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        files: { original: mergedId },
+      };
+      await saveAsset(newAsset);
+
+      // Create new merged clip
+      const firstClip = selectedClips[0];
+      const newClip: TimelineClip = {
+        id: crypto.randomUUID(),
+        assetId: mergedId,
+        trackId: firstClip.trackId,
+        offsetSeconds: firstClip.offsetSeconds,
+        trimStart: 0,
+        trimEnd: totalDuration,
+        baseDuration: totalDuration,
+      };
+
+      // Replace selected clips with the merged clip
+      const selectedIds = new Set(selectedClips.map((c) => c.id));
+      const clips = this.project.timelineClips
+        .filter((c) => !selectedIds.has(c.id))
+        .concat(newClip);
+
+      // Release frame cache for merged clips
+      for (const id of selectedIds) {
+        const oldFrames = this._frameCache.get(id);
+        if (oldFrames) {
+          for (const f of oldFrames) f.bitmap.close();
+          this._frameCache.delete(id);
+        }
+      }
+
+      this._selectedClipIds = new Set([newClip.id]);
+
+      this.dispatchEvent(new CustomEvent('update-clips', { detail: clips, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('add-asset', { detail: newAsset, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('message', { detail: '合并完成', bubbles: true, composed: true }));
+    } catch (e) {
+      console.error('[merge] failed:', e);
+      this.dispatchEvent(new CustomEvent('message', { detail: '合并失败，请重试', bubbles: true, composed: true }));
+    } finally {
+      this._merging = false;
+      this.requestUpdate();
+    }
+  };
+
   private _exportClip = () => {
-    const selectedClip = this._selectedClipId
-      ? this.project.timelineClips.find((c) => c.id === this._selectedClipId)
-      : null;
+    const selectedClip = this.project.timelineClips.find((c) => this._selectedClipIds.has(c.id))
+      ?? (this._selectedClipIds.size === 1 ? this.project.timelineClips.find((c) => this._selectedClipIds.has(c.id)) : null);
     const clipsToExport = selectedClip ? [selectedClip] : this.project.timelineClips;
     if (clipsToExport.length === 0) return;
 
@@ -348,8 +587,11 @@ export class TimelinePanel extends LitElement {
             bubbles: true, composed: true,
           }));
           try {
+            const clipAsset = this._assetMap.get(c.assetId ?? '') ?? asset;
+            const clipFile = await getFile(clipAsset.files.original || clipAsset.id);
+            if (!clipFile) continue;
             const name = `${asset.title}-${String(i + 1).padStart(2, '0')}.mp4`;
-            const data = await transcodeToMp4(file, { trimStart: c.trimStart, trimEnd: c.trimEnd });
+            const data = await transcodeToMp4(clipFile, { trimStart: c.trimStart, trimEnd: c.trimEnd });
             entries.push({ name, data });
           } catch (e) {
             console.error('[export] clip', i, 'failed:', e);
@@ -392,7 +634,7 @@ export class TimelinePanel extends LitElement {
       const header = new Uint8Array(30);
       const view = new DataView(header.buffer);
       view.setUint32(0, 0x04034b50, true);
-      view.setUint16(8, 0, true);              // compression: store
+      view.setUint16(8, 0, true);
       view.setUint32(14, crc32, true);
       view.setUint32(18, data.byteLength, true);
       view.setUint32(22, data.byteLength, true);
@@ -435,10 +677,10 @@ export class TimelinePanel extends LitElement {
     const eocd = new Uint8Array(22);
     const ev = new DataView(eocd.buffer);
     ev.setUint32(0, 0x06054b50, true);
-    ev.setUint16(8, entries.length, true);  // entries on this disk
-    ev.setUint16(10, entries.length, true); // total entries
-    ev.setUint32(12, cd.byteLength, true);  // central directory size
-    ev.setUint32(16, cdOffset, true);       // central directory offset
+    ev.setUint16(8, entries.length, true);
+    ev.setUint16(10, entries.length, true);
+    ev.setUint32(12, cd.byteLength, true);
+    ev.setUint32(16, cdOffset, true);
     parts.push(eocd);
 
     const totalLen = parts.reduce((s, p) => s + p.byteLength, 0);
@@ -463,9 +705,12 @@ export class TimelinePanel extends LitElement {
 
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      this._deleteSelectedClip();
+      this._deleteSelectedClips();
     } else if (e.key === 's' || e.key === 'S') {
       this._splitAtPlayhead();
+    } else if ((e.key === 'm' || e.key === 'M') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      this._mergeSelectedClips();
     }
   };
 
@@ -584,12 +829,12 @@ export class TimelinePanel extends LitElement {
     const clips = this.project.timelineClips.filter((c) => c.trackId === track.id);
     const clipTop = RULER_H;
     const clipH = h - RULER_H - 8;
-    const withFrames = clips.filter((c) => this._frameCache.has(c.id)).length;
-    console.log('[timeline] _drawCanvas drawing', clips.length, 'clips,', withFrames, 'have frames');
 
     for (const clip of clips) {
       const dur = clipDuration(clip);
-      const x = clip.offsetSeconds * pps;
+      const isDragging = this._clipDrag?.clipId === clip.id && this._clipDrag.moved;
+      const dragOff = isDragging ? this._dragOffsetSeconds : 0;
+      const x = (clip.offsetSeconds + dragOff) * pps;
       const cw = Math.max(2, dur * pps);
       const asset = this._assetMap.get(clip.assetId ?? '');
       const isVideo = asset?.kind === 'video';
@@ -601,11 +846,16 @@ export class TimelinePanel extends LitElement {
       this._roundRect(ctx, x, clipTop + 4, cw, clipH, r);
       ctx.clip();
 
+      // Semi-transparent overlay for dragged clip
+      if (isDragging) {
+        ctx.globalAlpha = 0.7;
+      }
+
       if (isVideo && frames && frames.length > 0) {
         // Draw one frame per minor tick, aligned to ruler grid
         const mainStep = pps >= 120 ? 1 : pps >= 60 ? 2 : pps >= 30 ? 5 : 10;
         const minorStep = mainStep / 10;
-        const frameInterval = 0.1; // frames extracted every 0.1s
+        const frameInterval = 0.1;
         const clipStartTime = clip.trimStart;
         const clipEndTime = clip.trimEnd;
         let t = Math.floor(clipStartTime / minorStep) * minorStep;
@@ -633,12 +883,21 @@ export class TimelinePanel extends LitElement {
 
       ctx.restore();
 
-      // Border
-      ctx.strokeStyle = this._selectedClipId === clip.id ? '#4d96ff' : 'rgba(148,171,214,0.15)';
-      ctx.lineWidth = this._selectedClipId === clip.id ? 2 : 1;
+      // Border - highlight if selected or dragging
+      const isSelected = this._selectedClipIds.has(clip.id);
+      ctx.lineWidth = isDragging ? 2.5 : isSelected ? 2 : 1;
+      ctx.strokeStyle = isDragging ? '#ffd54f' : isSelected ? '#4d96ff' : 'rgba(148,171,214,0.15)';
       ctx.beginPath();
       this._roundRect(ctx, x, clipTop + 4, cw, clipH, r);
       ctx.stroke();
+
+      // Selected indicator dot
+      if (isSelected) {
+        ctx.fillStyle = '#4d96ff';
+        ctx.beginPath();
+        ctx.arc(x + cw - 8, clipTop + 4 + 8, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Label
       const title = asset?.title ?? '?';
@@ -673,6 +932,8 @@ export class TimelinePanel extends LitElement {
 
   render() {
     const pps = this._pps;
+    const selectedClips = this.project.timelineClips.filter((c) => this._selectedClipIds.has(c.id));
+    const exportLabel = selectedClips.length === 1 ? '导出选中' : selectedClips.length > 1 ? '导出 ZIP' : '导出全部';
 
     return html`
       <div class="panel-header">
@@ -691,17 +952,21 @@ export class TimelinePanel extends LitElement {
             <button @click=${() => { this._zoom = clamp(this._zoom + 0.25, MIN_ZOOM, MAX_ZOOM); }}>+</button>
           </div>
           <button @click=${() => this._splitAtPlayhead()}>切割 S</button>
-          <button @click=${this._deleteSelectedClip}
-            ?disabled=${!this._selectedClipId}>删除 Del</button>
+          <button @click=${this._deleteSelectedClips}
+            ?disabled=${this._selectedClipIds.size === 0}>删除 Del</button>
+          <button class="primary" @click=${this._mergeSelectedClips}
+            ?disabled=${this._selectedClipIds.size < 2 || this._merging}>
+            ${this._merging ? '合并中...' : '合并'}
+          </button>
           <button @click=${this._exportClip}>
-            ${this._selectedClipId ? '导出选中' : '导出全部'}
+            ${exportLabel}
           </button>
         </div>
       </div>
 
       <div class="subheader">
-        <span>${this.project.timelineClips.length} 段片段</span>
-        <span>Ctrl+滚轮缩放 · S切割 · Del删除 · 导出</span>
+        <span>${selectedClips.length > 0 ? `已选 ${selectedClips.length} 段` : `${this.project.timelineClips.length} 段片段`}</span>
+        <span>Ctrl+滚轮缩放 · S切割 · Del删除 · Ctrl+M合并 · 按住片段拖动 · Ctrl+点击多选</span>
       </div>
 
       <div class="track-list">

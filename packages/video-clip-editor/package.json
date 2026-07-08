@@ -39,5 +39,8 @@
     "lit": "^3.2.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "mp4-muxer": "^5.2.2"
   }
 }

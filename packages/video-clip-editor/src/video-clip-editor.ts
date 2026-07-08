@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { MediaAsset, TimelineClip, ProjectState } from './lib/types.js';
 import { loadProject, saveProject, listAssets, saveAsset, saveFile } from './lib/store.js';
 import { computeDuration } from './lib/media.js';
@@ -106,6 +106,8 @@ export class VideoClipEditor extends LitElement {
   @state() _isPlaying = false;
   @state() _busyAssetId: string | null = null;
 
+  @property({ type: String }) url = '';
+
   private _playheadSeconds = 0;
 
   connectedCallback() {
@@ -124,6 +126,10 @@ export class VideoClipEditor extends LitElement {
     }
     this._assets = savedAssets;
     this.requestUpdate();
+
+    if (this.url) {
+      await this._importFromUrl(this.url);
+    }
   }
 
   private async _saveProject() {
@@ -139,6 +145,76 @@ export class VideoClipEditor extends LitElement {
     input?.click();
   }
 
+  private async _processFile(file: File) {
+    let durationSeconds: number | undefined;
+    if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+      durationSeconds = await computeDuration(file).catch((e) => {
+        console.error('[upload] computeDuration failed:', e);
+        return undefined;
+      });
+    }
+
+    const id = crypto.randomUUID();
+    const asset: MediaAsset = {
+      id,
+      title: file.name.replace(/\.[^.]+$/, '') || file.name,
+      originalName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      kind: file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'other',
+      size: file.size,
+      durationSeconds,
+      status: 'ready',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      files: { original: id },
+    };
+
+    await saveFile(id, file);
+    await saveAsset(asset);
+    this._assets = [...this._assets, asset];
+
+    if (asset.kind === 'video' && durationSeconds) {
+      const clip: TimelineClip = {
+        id: crypto.randomUUID(),
+        assetId: asset.id,
+        trackId: 'V1',
+        offsetSeconds: 0,
+        trimStart: 0,
+        trimEnd: durationSeconds,
+        baseDuration: durationSeconds,
+      };
+      this._project = {
+        ...this._project,
+        timelineClips: [clip],
+      };
+      this._playheadSeconds = clip.offsetSeconds;
+    }
+  }
+
+  private async _importFromUrl(url: string) {
+    this._message = '下载中...';
+    this.requestUpdate();
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`下载失败: HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const fileName = url.split('/').pop()?.split('?')[0] || 'video.mp4';
+      const mimeType = blob.type || 'video/mp4';
+      const file = new File([blob], fileName, { type: mimeType });
+      await this._processFile(file);
+      this._message = '已导入远程视频';
+    } catch (e) {
+      console.error('[import-url] failed:', e);
+      this._message = '远程视频导入失败，请重试';
+    }
+
+    await this._saveProject();
+    this.requestUpdate();
+  }
+
   private async _handleUpload(e: Event) {
     const input = e.target as HTMLInputElement;
     const files = input.files;
@@ -149,57 +225,8 @@ export class VideoClipEditor extends LitElement {
 
     try {
       for (const file of Array.from(files)) {
-      let durationSeconds: number | undefined;
-      console.log('[upload] processing file:', file.name, 'type:', file.type, 'size:', file.size);
-      if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
-        durationSeconds = await computeDuration(file).catch((e) => {
-          console.error('[upload] computeDuration failed:', e);
-          return undefined;
-        });
-        console.log('[upload] duration:', durationSeconds);
+        await this._processFile(file);
       }
-
-      const id = crypto.randomUUID();
-      const asset: MediaAsset = {
-        id,
-        title: file.name.replace(/\.[^.]+$/, '') || file.name,
-        originalName: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        kind: file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'other',
-        size: file.size,
-        durationSeconds,
-        status: 'ready',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        files: { original: id },
-      };
-
-      await saveFile(id, file);
-      await saveAsset(asset);
-      this._assets = [...this._assets, asset];
-      console.log('[upload] asset saved, kind:', asset.kind, 'total assets:', this._assets.length);
-
-      // Auto-add video to the single track (replace existing)
-      if (asset.kind === 'video' && durationSeconds) {
-        const clip: TimelineClip = {
-          id: crypto.randomUUID(),
-          assetId: asset.id,
-          trackId: 'V1',
-          offsetSeconds: 0,
-          trimStart: 0,
-          trimEnd: durationSeconds,
-          baseDuration: durationSeconds,
-        };
-        this._project = {
-          ...this._project,
-          timelineClips: [clip],
-        };
-        this._playheadSeconds = clip.offsetSeconds;
-        console.log('[upload] clip replaced, new clip:', clip.id);
-      } else {
-        console.log('[upload] clip NOT added. kind=', asset.kind, 'durationSeconds=', durationSeconds);
-      }
-    }
 
       this._message = `已导入 ${files.length} 个文件`;
       await this._saveProject();
@@ -233,6 +260,12 @@ export class VideoClipEditor extends LitElement {
 
   private _onMessage = (e: CustomEvent) => {
     this._message = e.detail as string;
+    this.requestUpdate();
+  };
+
+  private _onAddAsset = (e: CustomEvent) => {
+    const asset = e.detail as MediaAsset;
+    this._assets = [...this._assets, asset];
     this.requestUpdate();
   };
 
@@ -287,6 +320,7 @@ export class VideoClipEditor extends LitElement {
             @update-clips=${this._onUpdateClips}
             @playhead-change=${this._onPlayheadChange}
             @message=${this._onMessage}
+            @add-asset=${this._onAddAsset}
             @toggle-playback=${this._onTogglePlayback}
           ></timeline-panel>
         </div>
