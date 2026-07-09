@@ -8,47 +8,28 @@ export default function Index() {
   const navigate = useNavigate();
   const [clips, setClips] = useState<VideoClip[]>([]);
   const [query, setQuery] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    url: "",
-    duration: "",
-    tags: "",
-  });
 
-  const refresh = useCallback(() => {
-    setClips(query ? searchClips(query) : getAllClips());
+  const refresh = useCallback(async () => {
+    const data = query ? await searchClips(query) : await getAllClips();
+    setClips(data);
   }, [query]);
 
-  useEffect(() => refresh(), [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
-  const handleSearch = (value: string) => {
+  const handleSearch = async (value: string) => {
     setQuery(value);
-    setClips(value ? searchClips(value) : getAllClips());
+    const data = value ? await searchClips(value) : await getAllClips();
+    setClips(data);
   };
 
-  const handleAdd = () => {
-    if (!form.title.trim() || !form.url.trim()) return;
-    const duration = parseFloat(form.duration) || 0;
-    addClip({
-      title: form.title.trim(),
-      description: form.description.trim(),
-      url: form.url.trim(),
-      duration,
-      tags: form.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-    });
-    setForm({ title: "", description: "", url: "", duration: "", tags: "" });
-    setShowModal(false);
-    refresh();
+  const handleAdd = async () => {
+    const clip = await addClip({ title: "未命名", description: "", url: "", duration: 0, tags: [] });
+    navigate(`/detail/${clip.id}`);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!window.confirm("确定删除该片段？")) return;
-    deleteClip(id);
+    await deleteClip(id);
     refresh();
   };
 
@@ -79,18 +60,8 @@ export default function Index() {
         )}
       </div>
 
-      {clips.length === 0 && !query ? (
-        <div className="empty-state">
-          <p>暂无片段，点击下方卡片新增</p>
-        </div>
-      ) : clips.length === 0 && query ? (
-        <div className="empty-state">
-          <p>没有匹配的片段</p>
-        </div>
-      ) : null}
-
       <div className="card-grid">
-        <div className="clip-card add-card" onClick={() => setShowModal(true)}>
+        <div className="clip-card add-card" onClick={handleAdd}>
           <div className="card-thumb add-thumb">
             <span className="add-icon">+</span>
           </div>
@@ -152,79 +123,6 @@ export default function Index() {
           </div>
         ))}
       </div>
-
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>新增片段</h2>
-            <div className="form-group">
-              <label>标题 *</label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="输入标题"
-              />
-            </div>
-            <div className="form-group">
-              <label>链接 *</label>
-              <input
-                type="text"
-                value={form.url}
-                onChange={(e) => setForm({ ...form, url: e.target.value })}
-                placeholder="链接或本地路径"
-              />
-            </div>
-            <div className="form-group">
-              <label>描述</label>
-              <textarea
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-                placeholder="输入描述信息"
-                rows={3}
-              />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>时长（秒）</label>
-                <input
-                  type="number"
-                  value={form.duration}
-                  onChange={(e) =>
-                    setForm({ ...form, duration: e.target.value })
-                  }
-                  placeholder="0"
-                  min="0"
-                  step="0.1"
-                />
-              </div>
-            </div>
-            <div className="form-group">
-              <label>标签（逗号分隔）</label>
-              <input
-                type="text"
-                value={form.tags}
-                onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                placeholder="如：风景, 旅行, 自然"
-              />
-            </div>
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>
-                取消
-              </button>
-              <button
-                className="btn-primary"
-                onClick={handleAdd}
-                disabled={!form.title.trim() || !form.url.trim()}
-              >
-                确认添加
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
