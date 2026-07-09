@@ -2,12 +2,15 @@ import { isTauri as checkTauri } from "@tauri-apps/api/core";
 
 const ASSET_DIR = "editor-tarui/assets";
 
+let cachedBaseDir: string | null = null;
+
 export function isTauri(): boolean {
   try { return checkTauri(); } catch { return false; }
 }
 
 async function ensureAssetDir(): Promise<string | null> {
   if (!isTauri()) return null;
+  if (cachedBaseDir) return cachedBaseDir;
   const { documentDir } = await import("@tauri-apps/api/path");
   const { mkdir, exists } = await import("@tauri-apps/plugin-fs");
   const base = await documentDir();
@@ -15,7 +18,14 @@ async function ensureAssetDir(): Promise<string | null> {
   if (!(await exists(dir))) {
     await mkdir(dir, { recursive: true });
   }
+  cachedBaseDir = dir;
   return dir;
+}
+
+export async function getAssetDir(): Promise<string> {
+  if (!isTauri()) return "";
+  const baseDir = await ensureAssetDir();
+  return baseDir || "";
 }
 
 export async function saveAsset(nodeId: string, file: File): Promise<string> {
