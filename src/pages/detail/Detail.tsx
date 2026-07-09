@@ -1,404 +1,331 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import {
+  ReactFlow,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  addEdge as rfAddEdge,
+  type Edge,
+  type Connection,
+  BackgroundVariant,
+  SelectionMode,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import type { VideoClip } from "../../lib/types";
 import { getClipById, updateClip } from "../../lib/store";
-import { useCanvas } from "./useCanvas";
-import { useNodes } from "./useNodes";
+import { saveCanvas, loadCanvas } from "../../lib/db";
+import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
 import { MAIN_MENU, ADD_NODE_MENU, FLOW_ITEM_MENU } from "./menus";
-import type { ContextMenuState } from "./types";
-import {
-  render, screenToWorld, worldToScreen, hitTest,
-} from "./renderer";
 import ImageToolbox from "./ImageToolbox";
+import TextNode from "./nodes/TextNode";
+import ImageNode from "./nodes/ImageNode";
+import VideoNode from "./nodes/VideoNode";
+import type { FlowNode } from "./nodes/types";
 import "./Detail.css";
+import "./nodes/nodes.css";
+
+const nodeTypes = {
+  text: TextNode,
+  image: ImageNode,
+  "image-upload": ImageNode,
+  video: VideoNode,
+  "video-upload": VideoNode,
+};
+
+let nodeIdCounter = 0;
+let edgeIdCounter = 0;
+
+interface MenuState { x: number; y: number; type: "main" | "addNode" | "flowItem"; nodeId?: string; }
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [clip, setClip] = useState<VideoClip | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({
-    title: "", description: "", url: "", duration: "", tags: "",
-  });
-  const [menu, setMenu] = useState<ContextMenuState | null>(null);
-
-  const {
-    containerRef, offset, scale, setOffset, setScale,
-    handleWheel, focusNode, resetView,
-  } = useCanvas();
-
-  const {
-    nodes, edges, addNode, deleteNode, duplicateNode,
-    updateNode, moveNode, cancelEditing, addEdge, removeEdge,
-  } = useNodes();
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef(0);
-
-  const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
-  const cursorWorld = useRef({ x: 0, y: 0 });
-  const [hoveredPort, setHoveredPort] = useState<string | null>(null);
-  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [selectedImageNodeId, setSelectedImageNodeId] = useState<string | null>(null);
-  const dashOffsetRef = useRef(0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
-  const [dragNodeId, setDragNodeId] = useState<string | null>(null);
-  const [dragCanvas, setDragCanvas] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0 });
-  const dragOrigin = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
-  const cssScale = scale / 2;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadPosRef = useRef({ x: 0, y: 0 });
+
+  const rfInstance = useRef<any>(null);
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
-    const found = getClipById(id);
-    if (!found) { navigate("/", { replace: true }); return; }
-    setClip(found);
-    setForm({
-      title: found.title, description: found.description,
-      url: found.url, duration: String(found.duration),
-      tags: found.tags.join(", "),
+    getClipById(id).then((found) => {
+      if (!found) { navigate("/", { replace: true }); return; }
+      setClip(found);
     });
   }, [id, navigate]);
 
+  const viewportCenter = useCallback(() => {
+    const rf = rfInstance.current;
+    if (!rf) return { x: 0, y: 0 };
+    const vp = rf.getViewport();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return { x: (rect.width / 2 - vp.x) / vp.zoom, y: (rect.height / 2 - vp.y) / vp.zoom };
+  }, []);
+
+  const screenToFlow = useCallback((sx: number, sy: number) => {
+    const rf = rfInstance.current;
+    if (!rf) return viewportCenter();
+    const pos = rf.screenToFlowPosition({ x: sx, y: sy });
+    if (!pos || isNaN(pos.x) || isNaN(pos.y)) return viewportCenter();
+    return pos;
+  }, [viewportCenter]);
+
+  const addNode = useCallback((type: string, x: number, y: number, fileUrl?: string) => {
+    const isMedia = type === "image-upload" || type === "video-upload";
+    const id = `node-${++nodeIdCounter}`;
+    const newNode: FlowNode = {
+      id, type: type, position: { x, y },
+      data: { type, content: "", fileUrl: fileUrl || "", w: isMedia ? undefined : 700, h: isMedia ? undefined : 400 },
+    };
+    setNodes((prev) => [...prev, newNode]);
+    return id;
+  }, [setNodes]);
+
+  const addEdge = useCallback((params: Connection) => {
+    setEdges((prev) => rfAddEdge({ ...params, id: `edge-${++edgeIdCounter}` }, prev));
+  }, [setEdges]);
+
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes((prev) => prev.filter((n) => n.id !== nodeId));
+    setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
+    setSelectedNode(null);
+    deleteAssetDir(nodeId);
+  }, [setNodes, setEdges]);
+
+  const duplicateNode = useCallback((nodeId: string) => {
+    setNodes((prev) => {
+      const node = prev.find((n) => n.id === nodeId);
+      if (!node) return prev;
+      const copy = { ...node, id: `node-${++nodeIdCounter}`, position: { x: node.position.x + 30, y: node.position.y + 30 } };
+      return [...prev, copy];
+    });
+  }, [setNodes]);
+
+  const removeEdge = useCallback((edgeId: string) => {
+    setEdges((prev) => prev.filter((e) => e.id !== edgeId));
+  }, [setEdges]);
+
+  // Keyboard
   useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setMenu(null);
-        cancelEditing();
         setEditingNodeId(null);
-        setConnectingFrom(null);
+        setEdgeToDelete(null);
+      }
+      const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement).tagName);
+      if ((e.key === "Delete" || e.key === "Backspace") && !editingNodeId && !isInput) {
+        e.preventDefault();
+        if (edgeToDelete) { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }
+        else if (selectedNode) { deleteNode(selectedNode.id); }
       }
     };
-    window.addEventListener("mousedown", close);
     window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menu, cancelEditing]);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editingNodeId, edgeToDelete, selectedNode, removeEdge, deleteNode]);
 
-  // Render loop
+  // Load from IndexedDB
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const draw = () => {
-      const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = rect.width + "px";
-      canvas.style.height = rect.height + "px";
-      const ctx = canvas.getContext("2d")!;
-      dashOffsetRef.current = (dashOffsetRef.current + 1) % 36;
-      render(
-        ctx, rect.width, rect.height, dpr,
-        offset.x, offset.y, scale,
-        nodes, edges,
-        connectingFrom, cursorWorld.current.x, cursorWorld.current.y,
-        hoveredPort, hoveredEdgeId, dashOffsetRef.current,
-      );
-      animRef.current = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => cancelAnimationFrame(animRef.current);
-  }, [offset, scale, nodes, edges, connectingFrom, hoveredPort, hoveredEdgeId, containerRef]);
-
-  const handleScreenToWorld = useCallback((sx: number, sy: number) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return screenToWorld(sx, sy, offset.x, offset.y, scale);
-  }, [offset, scale, containerRef]);
-
-  const handleWorldToScreen = useCallback((wx: number, wy: number) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return worldToScreen(wx, wy, offset.x, offset.y, scale);
-  }, [offset, scale, containerRef]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const pos = handleScreenToWorld(e.clientX, e.clientY);
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      const hit = hitTest(e.clientX, e.clientY, offset.x, offset.y, scale, nodes, edges, rect);
-      if (hit.type === "node" && hit.nodeId) {
-        setMenu({ x: e.clientX, y: e.clientY, canvasX: pos.x, canvasY: pos.y, type: "flowItem", nodeId: hit.nodeId });
-        return;
+    loadCanvas().then(async (data) => {
+      if (loadedRef.current) return;
+      const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
+        const fileUrl: string = n.data?.fileUrl || "";
+        if (fileUrl && !fileUrl.startsWith("blob:") && !fileUrl.startsWith("http")) {
+          const assetUrl = await loadAssetUrl(fileUrl);
+          return { ...n, data: { ...n.data, fileUrl: assetUrl || fileUrl } };
+        }
+        return n;
+      }));
+      // Sync counter from loaded IDs
+      restoredNodes.forEach((n: any) => {
+        const match = n.id.match(/^node-(\d+)$/);
+        if (match) nodeIdCounter = Math.max(nodeIdCounter, parseInt(match[1]));
+      });
+      data.edges.forEach((e: any) => {
+        const match = e.id.match(/^edge-(\d+)$/);
+        if (match) edgeIdCounter = Math.max(edgeIdCounter, parseInt(match[1]));
+      });
+      if (restoredNodes.length > 0) {
+        setNodes(restoredNodes as any);
+        setEdges(data.edges as any);
       }
+      loadedRef.current = true;
+    });
+  }, [setNodes, setEdges]);
+
+  // Save to IndexedDB
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    const timer = setTimeout(() => {
+      saveCanvas(nodes as any, edges as any);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [nodes, edges]);
+
+  // Menu close
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [menu]);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const type = file.type.startsWith("video/") ? "video-upload" : "image-upload";
+    const nodeId = addNode(type, uploadPosRef.current.x, uploadPosRef.current.y, "");
+    const path = await saveAsset(nodeId, file);
+    setNodes((prev) => prev.map((n) => n.id === nodeId ? {
+      ...n, data: { ...n.data, fileUrl: path }
+    } : n));
+    // Auto-resize after path is set
+    if (type === "video-upload") {
+      const v = document.createElement("video");
+      const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
+      v.preload = "metadata";
+      v.onloadedmetadata = () => {
+        const maxW = 700;
+        const w = Math.min(maxW, v.videoWidth);
+        const h = v.videoWidth ? (v.videoHeight / v.videoWidth) * w : 400;
+        setNodes((prev) => prev.map((n) => n.id === nodeId ? {
+          ...n, data: { ...n.data, w, h },
+          position: { x: n.position.x - w / 2, y: n.position.y - h / 2 }
+        } : n));
+      };
+      v.src = url;
+    } else {
+      const img = new Image();
+      const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
+      img.onload = () => {
+        const maxW = 700;
+        const w = Math.min(maxW, img.naturalWidth);
+        const h = (img.naturalHeight / img.naturalWidth) * w;
+        setNodes((prev) => prev.map((n) => n.id === nodeId ? {
+          ...n, data: { ...n.data, w, h },
+          position: { x: n.position.x - w / 2, y: n.position.y - h / 2 }
+        } : n));
+      };
+      img.src = url;
     }
-    setMenu({ x: e.clientX, y: e.clientY, canvasX: pos.x, canvasY: pos.y, type: "main" });
-  }, [handleScreenToWorld, offset, scale, nodes, edges, containerRef]);
+    e.target.value = "";
+  }, [addNode, setNodes]);
 
   const handleMenuAction = useCallback((action: string) => {
-    const nodeId = menu?.nodeId;
-    const cx = menu?.canvasX ?? 0;
-    const cy = menu?.canvasY ?? 0;
-
+    if (!menu) return;
     switch (action) {
-      case "添加节点":
-        setMenu((prev) => prev ? { ...prev, type: "addNode" } : null);
-        return;
-      case "文本":
-        addNode("text", cx, cy);
+      case "添加节点": setMenu({ ...menu, type: "addNode" }); return;
+      case "上传":
+        uploadPosRef.current = screenToFlow(menu.x, menu.y);
         setMenu(null);
+        fileInputRef.current?.click();
         break;
-      case "图片":
-        addNode("image", cx, cy);
-        setMenu(null);
-        break;
-      case "删除":
-        if (nodeId) deleteNode(nodeId);
-        setMenu(null);
-        break;
-      case "复制节点":
-      case "创建副本":
-        if (nodeId) duplicateNode(nodeId);
-        setMenu(null);
-        break;
-      default:
-        setMenu(null);
+      case "文本": addNode("text", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y); setMenu(null); break;
+      case "图片": addNode("image", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y); setMenu(null); break;
+      case "删除": if (menu.nodeId) deleteNode(menu.nodeId); setMenu(null); break;
+      case "复制节点": case "创建副本": if (menu.nodeId) duplicateNode(menu.nodeId); setMenu(null); break;
+      default: setMenu(null);
     }
-  }, [menu, addNode, deleteNode, duplicateNode]);
+  }, [menu, addNode, deleteNode, duplicateNode, screenToFlow]);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const hit = hitTest(e.clientX, e.clientY, offset.x, offset.y, scale, nodes, edges, rect);
+  const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
+    setEditingNodeId(node.id);
+  }, []);
 
-    if (hit.type === "edge" && hit.edgeId) {
-      setEdgeToDelete({ id: hit.edgeId, x: e.clientX, y: e.clientY });
-      return;
-    }
-
-    // Dismiss scissors on other clicks
-    setEdgeToDelete(null);
-
-    if (hit.type === "port-in" || hit.type === "port-out") {
-      setConnectingFrom(hit.nodeId!);
-      return;
-    }
-
-    if (hit.type === "node") {
-      setDragNodeId(hit.nodeId!);
-      const node = nodes.find((n) => n.id === hit.nodeId);
-      dragOrigin.current = { x: node?.x ?? 0, y: node?.y ?? 0, ox: e.clientX, oy: e.clientY };
-      // Select image nodes, deselect for others
-      if (node?.type === "image") {
-        setSelectedImageNodeId(hit.nodeId!);
-      } else {
-        setSelectedImageNodeId(null);
-      }
-      return;
-    }
-
-    // Click on empty canvas: deselect
-    setSelectedImageNodeId(null);
-
-    setDragCanvas(true);
-    dragStart.current = { x: e.clientX, y: e.clientY };
-    dragOrigin.current = { x: offset.x, y: offset.y, ox: 0, oy: 0 };
-  }, [offset, scale, nodes, edges, removeEdge]);
-
-  const onMouseMove = useCallback((e: React.MouseEvent) => {
-    const world = handleScreenToWorld(e.clientX, e.clientY);
-    cursorWorld.current = world;
-
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    // Hover detection
-    const hit = hitTest(e.clientX, e.clientY, offset.x, offset.y, scale, nodes, edges, rect);
-    if (hit.type === "edge") {
-      setHoveredEdgeId(hit.edgeId ?? null);
-      setHoveredPort(null);
-      if (containerRef.current) containerRef.current.style.cursor = "pointer";
-    } else if (hit.type === "port-in" || hit.type === "port-out") {
-      setHoveredEdgeId(null);
-      setHoveredPort(`${hit.nodeId}-${hit.type === "port-in" ? "in" : "out"}`);
-      if (containerRef.current) containerRef.current.style.cursor = "pointer";
-    } else {
-      setHoveredEdgeId(null);
-      setHoveredPort(null);
-      if (containerRef.current) {
-        containerRef.current.style.cursor = dragNodeId || dragCanvas ? "grabbing" : "grab";
-      }
-    }
-
-    if (dragNodeId) {
-      const s = cssScale;
-      const dx = (e.clientX - dragOrigin.current.ox) / s;
-      const dy = (e.clientY - dragOrigin.current.oy) / s;
-      moveNode(dragNodeId, dragOrigin.current.x + dx, dragOrigin.current.y + dy);
-      return;
-    }
-
-    if (dragCanvas) {
-      setOffset({
-        x: dragOrigin.current.x + e.clientX - dragStart.current.x,
-        y: dragOrigin.current.y + e.clientY - dragStart.current.y,
-      });
-      return;
-    }
-  }, [handleScreenToWorld, offset, scale, nodes, edges, dragNodeId, dragCanvas, cssScale, moveNode]);
-
-  const onMouseUp = useCallback(() => {
-    if (connectingFrom && hoveredPort) {
-      const targetId = hoveredPort.replace(/-in|-out$/, "");
-      if (targetId !== connectingFrom) {
-        addEdge(connectingFrom, targetId);
-      }
-    }
-    setConnectingFrom(null);
-    setDragNodeId(null);
-    setDragCanvas(false);
-  }, [connectingFrom, hoveredPort, addEdge]);
-
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const hit = hitTest(e.clientX, e.clientY, offset.x, offset.y, scale, nodes, edges, rect);
-    if (hit.type === "node" && hit.nodeId) {
-      const node = nodes.find((n) => n.id === hit.nodeId);
-      if (node) {
-        focusNode(node.x, node.y, 2);
-        setEditingNodeId(hit.nodeId);
-        setEditText(node.content);
-      }
-    }
-  }, [offset, scale, nodes, edges, focusNode]);
-
-  const commitEdit = useCallback(() => {
+  const commitEdit = useCallback((text: string) => {
     if (editingNodeId) {
-      updateNode(editingNodeId, { content: editText, editing: false });
+      setNodes((prev) => prev.map((n) => n.id === editingNodeId ? { ...n, data: { ...n.data, content: text } } : n));
     }
     setEditingNodeId(null);
-  }, [editingNodeId, editText, updateNode]);
-
-  const handleSave = () => {
-    if (!clip || !form.title.trim() || !form.url.trim()) return;
-    const updated = updateClip(clip.id, {
-      title: form.title.trim(), description: form.description.trim(),
-      url: form.url.trim(), duration: parseFloat(form.duration) || 0,
-      tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-    });
-    if (updated) {
-      setClip(updated);
-      setForm({
-        title: updated.title, description: updated.description,
-        url: updated.url, duration: String(updated.duration),
-        tags: updated.tags.join(", "),
-      });
-    }
-    setEditing(false);
-  };
+  }, [editingNodeId, setNodes]);
 
   if (!clip) return null;
 
-  // Compute textarea screen position
-  let editScreenPos = { left: -9999, top: -9999, width: 700, height: 400 };
-  if (editingNodeId) {
-    const node = nodes.find((n) => n.id === editingNodeId);
-    if (node) {
-      const pos = handleWorldToScreen(node.x, node.y);
-      editScreenPos = {
-        left: pos.x,
-        top: pos.y,
-        width: 700 * cssScale,
-        height: 400 * cssScale,
-      };
-    }
-  }
-
+  const showToolbox = selectedNode && selectedNode.data?.type === "image";
+  const editNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
   return (
-    <div
-      className="canvas-container"
-      ref={containerRef}
-      onContextMenu={handleContextMenu}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onDoubleClick={handleDoubleClick}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseUp}
-      onWheel={handleWheel}
-    >
-      <canvas
-        ref={canvasRef}
-        className="render-canvas"
-      />
+    <div className="canvas-container" ref={containerRef}>
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={addEdge}
+        onNodeDoubleClick={handleNodeDoubleClick}
+        onNodeContextMenu={(e, node) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
+        }}
+        onPaneContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, type: "main" });
+        }}
+        onEdgeClick={(e, edge) => {
+          setEdgeToDelete({ id: edge.id, x: e.clientX, y: e.clientY });
+        }}
+        onInit={(instance) => { rfInstance.current = instance; }}
+        onSelectionChange={({ nodes: sel }) => {
+          setSelectedNode(sel.length === 1 ? sel[0] as unknown as FlowNode : null);
+        }}
+        nodeTypes={nodeTypes as any}
+        fitView={false}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
+        minZoom={0.2}
+        maxZoom={3}
+        selectionMode={SelectionMode.Partial}
+        deleteKeyCode={null}
+        multiSelectionKeyCode="Shift"
+        proOptions={{ hideAttribution: true }}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
+        <Controls className="flow-controls" />
+      </ReactFlow>
 
       <button className="btn-back" onClick={() => navigate("/")}>&larr; 返回</button>
 
-      <div className="zoom-controls">
-        <button onClick={() => setScale((s) => Math.min(6, s * 1.2))}>+</button>
-        <span>{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale((s) => Math.max(0.4, s / 1.2))}>−</button>
-        <button onClick={resetView}>⟲</button>
-      </div>
+      <TitleEditor clip={clip} onUpdate={setClip} />
 
-      {selectedImageNodeId && nodes.find((n) => n.id === selectedImageNodeId) && (() => {
-        const node = nodes.find((n) => n.id === selectedImageNodeId)!;
-        const pos = handleWorldToScreen(node.x, node.y);
-        return (
-          <ImageToolbox
-            style={{
-              left: pos.x + 350 * cssScale,
-              top: pos.y + 400 * cssScale + 12,
-              transform: "translateX(-50%)",
-            }}
-          />
-        );
-      })()}
-
-      {editingNodeId && (
-        <textarea
-          className="canvas-textarea"
-          style={{
-            left: editScreenPos.left + 32 * cssScale,
-            top: editScreenPos.top + 36 * cssScale,
-            width: editScreenPos.width - 64 * cssScale,
-            height: editScreenPos.height - 72 * cssScale,
-            fontSize: 14 * cssScale,
-          }}
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          onBlur={commitEdit}
-          autoFocus
-          placeholder={nodes.find((n) => n.id === editingNodeId)?.type === "image" ? "输入图片描述..." : "输入文本..."}
-        />
+      {/* Toolbox */}
+      {showToolbox && (
+        <ImageToolbox style={{ position: "fixed", left: "50%", bottom: 16, transform: "translateX(-50%)" }} />
       )}
 
+      {/* Edit textarea */}
+      {editNode && (
+        <EditOverlay node={editNode} onCommit={commitEdit} rfInstance={rfInstance} />
+      )}
+
+      {/* Scissors */}
       {edgeToDelete && (
-        <div
-          className="scissors-btn"
-          style={{ left: edgeToDelete.x - 20, top: edgeToDelete.y - 20 }}
+        <div className="scissors-btn" style={{ left: edgeToDelete.x - 20, top: edgeToDelete.y - 20 }}
           onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }}
-        >
+          onClick={() => { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="6" cy="6" r="3" />
-            <circle cx="6" cy="18" r="3" />
-            <line x1="20" y1="4" x2="8.12" y2="15.88" />
-            <line x1="14.47" y1="14.48" x2="20" y2="20" />
-            <line x1="8.12" y1="8.12" x2="12" y2="12" />
+            <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" />
           </svg>
         </div>
       )}
 
+      {/* Context menus */}
       {menu && menu.type === "main" && (
         <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
           {MAIN_MENU.map((item) => (
-            <button
-              key={item.label}
-              className={`context-menu-item${item.disabled ? " disabled" : ""}`}
-              onClick={() => !item.disabled && handleMenuAction(item.label)}
-              disabled={item.disabled}
-            >
+            <button key={item.label} className={`context-menu-item${item.disabled ? " disabled" : ""}`}
+              onClick={() => !item.disabled && handleMenuAction(item.label)} disabled={item.disabled}>
               <span>{item.label}</span>
               {item.shortcut && <span className="menu-shortcut">{item.shortcut}</span>}
             </button>
@@ -413,8 +340,7 @@ export default function Detail() {
               <div className="menu-group-title">{group.group}</div>
               {group.items.map((item) => (
                 <button key={item.label} className="context-menu-item" onClick={() => handleMenuAction(item.label)}>
-                  <span className="menu-icon">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span className="menu-icon">{item.icon}</span><span>{item.label}</span>
                 </button>
               ))}
             </div>
@@ -425,33 +351,73 @@ export default function Detail() {
       {menu && menu.type === "flowItem" && (
         <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
           {FLOW_ITEM_MENU.map((item) => (
-            <button
-              key={item.label}
-              className={`context-menu-item${item.label === "删除" ? " danger" : ""}`}
-              onClick={() => handleMenuAction(item.label)}
-            >
+            <button key={item.label} className={`context-menu-item${item.label === "删除" ? " danger" : ""}`}
+              onClick={() => handleMenuAction(item.label)}>
               <span>{item.label}</span>
             </button>
           ))}
         </div>
       )}
 
-      {editing && (
-        <div className="modal-overlay" onClick={() => setEditing(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>编辑片段</h2>
-            <div className="form-group"><label>标题 *</label><input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div className="form-group"><label>链接 *</label><input type="text" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></div>
-            <div className="form-group"><label>描述</label><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} /></div>
-            <div className="form-group"><label>时长（秒）</label><input type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} min="0" step="0.1" /></div>
-            <div className="form-group"><label>标签（逗号分隔）</label><input type="text" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
-            <div className="form-actions">
-              <button className="btn-cancel" onClick={() => setEditing(false)}>取消</button>
-              <button className="btn-primary" onClick={handleSave} disabled={!form.title.trim() || !form.url.trim()}>保存</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+  );
+}
+
+function TitleEditor({ clip, onUpdate }: { clip: any; onUpdate: (c: any) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(clip.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const save = async () => {
+    const t = text.trim() || "未命名";
+    const updated = await updateClip(clip.id, { title: t });
+    if (updated) onUpdate(updated);
+    setText(t);
+    setEditing(false);
+  };
+
+  return editing ? (
+    <input
+      ref={inputRef}
+      className="title-input"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setText(clip.title); setEditing(false); } }}
+    />
+  ) : (
+    <div className="title-display" onClick={() => setEditing(true)} title="点击编辑标题">
+      {clip.title}
+    </div>
+  );
+}
+
+function EditOverlay({ node, onCommit, rfInstance }: { node: FlowNode; onCommit: (text: string) => void; rfInstance: any }) {
+  const [text, setText] = useState(node.data.content || "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pos = rfInstance.current?.flowToScreenPosition?.(node.position) ?? { x: 0, y: 0 };
+  const zoom = rfInstance.current?.getZoom?.() ?? 0.5;
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      className="canvas-textarea"
+      style={{
+        position: "fixed",
+        left: pos.x + 32 * zoom,
+        top: pos.y + 36 * zoom,
+        width: ((node.data.w || 700) - 64) * zoom,
+        height: ((node.data.h || 400) - 72) * zoom,
+        fontSize: 14 * zoom,
+      }}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => onCommit(text)}
+      placeholder="输入文本..."
+    />
   );
 }
