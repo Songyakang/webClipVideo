@@ -11,10 +11,10 @@ export function isTauri(): boolean {
 async function ensureAssetDir(): Promise<string | null> {
   if (!isTauri()) return null;
   if (cachedBaseDir) return cachedBaseDir;
-  const { documentDir } = await import("@tauri-apps/api/path");
+  const { documentDir, join } = await import("@tauri-apps/api/path");
   const { mkdir, exists } = await import("@tauri-apps/plugin-fs");
   const base = await documentDir();
-  const dir = `${base}${ASSET_DIR}`;
+  const dir = await join(base, ASSET_DIR);
   if (!(await exists(dir))) {
     await mkdir(dir, { recursive: true });
   }
@@ -51,9 +51,21 @@ export async function loadAssetUrl(relativePath: string): Promise<string> {
   if (!isTauri() || !relativePath) return "";
   const baseDir = await ensureAssetDir();
   if (!baseDir) return "";
-  const { convertFileSrc } = await import("@tauri-apps/api/core");
+  const { readFile } = await import("@tauri-apps/plugin-fs");
   const fullPath = `${baseDir}/${relativePath}`;
-  return convertFileSrc(fullPath);
+  try {
+    const data = await readFile(fullPath);
+    const ext = relativePath.split(".").pop()?.toLowerCase() || "bin";
+    const mimeMap: Record<string, string> = {
+      mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+      gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+    };
+    const blob = new Blob([data], { type: mimeMap[ext] || "application/octet-stream" });
+    return URL.createObjectURL(blob);
+  } catch {
+    return "";
+  }
 }
 
 export async function deleteAssetDir(nodeId: string): Promise<void> {

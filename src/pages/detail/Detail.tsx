@@ -187,13 +187,13 @@ export default function Detail() {
     const type = file.type.startsWith("video/") ? "video-upload" : "image-upload";
     const nodeId = addNode(type, uploadPosRef.current.x, uploadPosRef.current.y, "");
     const path = await saveAsset(nodeId, file);
+    const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
     setNodes((prev) => prev.map((n) => n.id === nodeId ? {
-      ...n, data: { ...n.data, fileUrl: path }
+      ...n, data: { ...n.data, fileUrl: url }
     } : n));
-    // Auto-resize after path is set
+    // Auto-resize
     if (type === "video-upload") {
       const v = document.createElement("video");
-      const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
       v.preload = "metadata";
       v.onloadedmetadata = () => {
         const maxW = 700;
@@ -207,7 +207,6 @@ export default function Detail() {
       v.src = url;
     } else {
       const img = new Image();
-      const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
       img.onload = () => {
         const maxW = 700;
         const w = Math.min(maxW, img.naturalWidth);

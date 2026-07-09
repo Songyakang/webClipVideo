@@ -4,4 +4,3 @@ dist
 apps/server/data/assets.json
 apps/server/storage
 
-.claude/
