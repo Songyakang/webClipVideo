@@ -23,6 +23,7 @@ import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import type { FlowNode } from "./nodes/types";
+import SubtitlePanel from "./subtitle/SubtitlePanel";
 import "./Detail.css";
 import "./nodes/nodes.css";
 
@@ -49,6 +50,7 @@ export default function Detail() {
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [showSubtitles, setShowSubtitles] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadPosRef = useRef({ x: 0, y: 0 });
@@ -252,6 +254,11 @@ export default function Detail() {
   if (!clip) return null;
 
   const showToolbox = selectedNode && selectedNode.data?.type === "image";
+  const selectedVideoNode =
+    selectedNode &&
+    (selectedNode.data?.type === "video" || selectedNode.data?.type === "video-upload")
+      ? selectedNode
+      : null;
   const editNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
   return (
     <div className="canvas-container" ref={containerRef}>
@@ -295,6 +302,36 @@ export default function Detail() {
       </ReactFlow>
 
       <button className="btn-back" onClick={() => navigate("/")}>&larr; 返回</button>
+
+      {selectedVideoNode && (
+        <button
+          className={`btn-subtitle-toggle${showSubtitles ? " active" : ""}`}
+          onClick={() => setShowSubtitles((v) => !v)}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            <line x1="8" y1="7" x2="16" y2="7" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+          字幕
+        </button>
+      )}
+
+      {showSubtitles && selectedVideoNode && (
+        <SubtitlePanel
+          nodeId={selectedVideoNode.id}
+          videoEl={
+            (() => {
+              const nodeEl = document.querySelector(
+                `.react-flow__node[data-id="${selectedVideoNode.id}"] video`
+              ) as HTMLVideoElement | null;
+              return nodeEl;
+            })()
+          }
+          onClose={() => setShowSubtitles(false)}
+        />
+      )}
 
       <TitleEditor clip={clip} onUpdate={setClip} />
 
