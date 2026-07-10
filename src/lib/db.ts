@@ -1,10 +1,12 @@
 import type { Node, Edge } from "@xyflow/react";
+import type { SubtitleTrack } from "./types";
 
 const DB_NAME = "video-clip-editor";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NODES = "nodes";
 const STORE_EDGES = "edges";
 const STORE_CLIPS = "clips";
+const STORE_SUBTITLES = "subtitles";
 
 export interface VideoClip {
   id: string;
@@ -31,6 +33,9 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_CLIPS)) {
         const cs = db.createObjectStore(STORE_CLIPS, { keyPath: "id" });
         cs.createIndex("createdAt", "createdAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_SUBTITLES)) {
+        db.createObjectStore(STORE_SUBTITLES, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -222,4 +227,36 @@ export async function searchClips(query: string): Promise<VideoClip[]> {
       c.description.toLowerCase().includes(q) ||
       c.tags.some((t) => t.toLowerCase().includes(q)),
   );
+}
+
+export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_SUBTITLES, "readwrite");
+    tx.objectStore(STORE_SUBTITLES).put(track);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
+  const db = await openDB();
+  const track = await new Promise<SubtitleTrack | undefined>((resolve, reject) => {
+    const req = db.transaction(STORE_SUBTITLES, "readonly").objectStore(STORE_SUBTITLES).get(nodeId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
+  return track || null;
+}
+
+export async function deleteSubtitleTrack(nodeId: string): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const req = db.transaction(STORE_SUBTITLES, "readwrite").objectStore(STORE_SUBTITLES).delete(nodeId);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
 }

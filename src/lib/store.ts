@@ -1,4 +1,4 @@
-import type { VideoClip } from "./types";
+import type { VideoClip, SubtitleTrack } from "./types";
 import {
   getAllClips as dbGetAll,
   getClipById as dbGetById,
@@ -6,6 +6,9 @@ import {
   deleteClip as dbDelete,
   updateClip as dbUpdate,
   searchClips as dbSearch,
+  saveSubtitleTrack as dbSaveTrack,
+  loadSubtitleTrack as dbLoadTrack,
+  deleteSubtitleTrack as dbDeleteTrack,
 } from "./db";
 
 export async function getAllClips(): Promise<VideoClip[]> {
@@ -35,4 +38,16 @@ export async function updateClip(
 
 export async function searchClips(query: string): Promise<VideoClip[]> {
   return dbSearch(query);
+}
+
+export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
+  return dbSaveTrack(track);
+}
+
+export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
+  return dbLoadTrack(nodeId);
+}
+
+export async function deleteSubtitleTrack(nodeId: string): Promise<void> {
+  return dbDeleteTrack(nodeId);
 }
