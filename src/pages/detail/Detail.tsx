@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -16,8 +16,9 @@ import "@xyflow/react/dist/style.css";
 import { useClipLoader } from "./hooks/useClipLoader";
 import { useCanvasPersistence } from "./hooks/useCanvasPersistence";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useContextMenu } from "./hooks/useContextMenu";
 import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
-import { MAIN_MENU, ADD_NODE_MENU, FLOW_ITEM_MENU } from "./menus";
+import ContextMenus from "./ContextMenus";
 import ImageToolbox from "./ImageToolbox";
 import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
@@ -37,13 +38,11 @@ const nodeTypes = {
   "video-upload": VideoNode,
 };
 
-interface MenuState { x: number; y: number; type: "main" | "addNode" | "flowItem"; nodeId?: string; }
-
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { clip, setClip } = useClipLoader(id);
-  const [menu, setMenu] = useState<MenuState | null>(null);
+  const { menu, setMenu } = useContextMenu();
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
@@ -118,14 +117,6 @@ export default function Detail() {
   });
 
   useCanvasPersistence(nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
-
-  // Menu close
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [menu]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -300,44 +291,7 @@ export default function Detail() {
         </div>
       )}
 
-      {/* Context menus */}
-      {menu && menu.type === "main" && (
-        <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
-          {MAIN_MENU.map((item) => (
-            <button key={item.label} className={`context-menu-item${item.disabled ? " disabled" : ""}`}
-              onClick={() => !item.disabled && handleMenuAction(item.label)} disabled={item.disabled}>
-              <span>{item.label}</span>
-              {item.shortcut && <span className="menu-shortcut">{item.shortcut}</span>}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {menu && menu.type === "addNode" && (
-        <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
-          {ADD_NODE_MENU.map((group) => (
-            <div key={group.group}>
-              <div className="menu-group-title">{group.group}</div>
-              {group.items.map((item) => (
-                <button key={item.label} className="context-menu-item" onClick={() => handleMenuAction(item.label)}>
-                  <span className="menu-icon">{item.icon}</span><span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {menu && menu.type === "flowItem" && (
-        <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
-          {FLOW_ITEM_MENU.map((item) => (
-            <button key={item.label} className={`context-menu-item${item.label === "删除" ? " danger" : ""}`}
-              onClick={() => handleMenuAction(item.label)}>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {menu && <ContextMenus menu={menu} onAction={handleMenuAction} />}
 
     </div>
   );
