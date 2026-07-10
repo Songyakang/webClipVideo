@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useClipLoader } from "./hooks/useClipLoader";
 import { useCanvasPersistence } from "./hooks/useCanvasPersistence";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
 import { MAIN_MENU, ADD_NODE_MENU, FLOW_ITEM_MENU } from "./menus";
 import ImageToolbox from "./ImageToolbox";
@@ -110,24 +111,11 @@ export default function Detail() {
     setEdges((prev) => prev.filter((e) => e.id !== edgeId));
   }, [setEdges]);
 
-  // Keyboard
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenu(null);
-        setEditingNodeId(null);
-        setEdgeToDelete(null);
-      }
-      const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement).tagName);
-      if ((e.key === "Delete" || e.key === "Backspace") && !editingNodeId && !isInput) {
-        e.preventDefault();
-        if (edgeToDelete) { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }
-        else if (selectedNode) { deleteNode(selectedNode.id); }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [editingNodeId, edgeToDelete, selectedNode, removeEdge, deleteNode]);
+  useKeyboardShortcuts({
+    editingNodeId, edgeToDelete, selectedNode,
+    setMenu, setEditingNodeId, setEdgeToDelete,
+    deleteNode, removeEdge,
+  });
 
   useCanvasPersistence(nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
 
