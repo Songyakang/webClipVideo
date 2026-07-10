@@ -1,0 +1,118 @@
+.subtitle-timeline {
+  position: relative;
+  height: 80px;
+  border-bottom: 1px solid #21262d;
+  background: #0d1117;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.timeline-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  border-bottom: 1px solid #21262d;
+  display: flex;
+  pointer-events: none;
+}
+
+.timeline-tick {
+  position: absolute;
+  bottom: 2px;
+  font-size: 9px;
+  color: #484f58;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-tick-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #21262d;
+}
+
+.timeline-blocks {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.timeline-block {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: #1a2a3d;
+  border: 1px solid #58a6ff;
+  border-radius: 4px;
+  opacity: 0.8;
+  transition: opacity 0.1s;
+  cursor: grab;
+  overflow: hidden;
+}
+
+.timeline-block:hover {
+  opacity: 1;
+}
+
+.timeline-block.active {
+  background: #1f3d5e;
+  border-color: #79c0ff;
+  opacity: 1;
+}
+
+.timeline-block-label {
+  font-size: 9px;
+  color: #8b949e;
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.timeline-block-resize-left,
+.timeline-block-resize-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.timeline-block-resize-left {
+  left: 0;
+}
+
+.timeline-block-resize-right {
+  right: 0;
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #f85149;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.timeline-playhead::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  background: #f85149;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
