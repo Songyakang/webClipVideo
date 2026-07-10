@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useClipLoader } from "./hooks/useClipLoader";
-import { saveCanvas, loadCanvas } from "../../lib/db";
+import { useCanvasPersistence } from "./hooks/useCanvasPersistence";
 import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
 import { MAIN_MENU, ADD_NODE_MENU, FLOW_ITEM_MENU } from "./menus";
 import ImageToolbox from "./ImageToolbox";
@@ -36,9 +36,6 @@ const nodeTypes = {
   "video-upload": VideoNode,
 };
 
-let nodeIdCounter = 0;
-let edgeIdCounter = 0;
-
 interface MenuState { x: number; y: number; type: "main" | "addNode" | "flowItem"; nodeId?: string; }
 
 export default function Detail() {
@@ -58,6 +55,8 @@ export default function Detail() {
 
   const rfInstance = useRef<any>(null);
   const loadedRef = useRef(false);
+  const nodeIdCounterRef = useRef(0);
+  const edgeIdCounterRef = useRef(0);
 
   const viewportCenter = useCallback(() => {
     const rf = rfInstance.current;
@@ -78,7 +77,7 @@ export default function Detail() {
 
   const addNode = useCallback((type: string, x: number, y: number, fileUrl?: string) => {
     const isMedia = type === "image-upload" || type === "video-upload";
-    const id = `node-${++nodeIdCounter}`;
+    const id = `node-${++nodeIdCounterRef.current}`;
     const newNode: FlowNode = {
       id, type: type, position: { x, y },
       data: { type, content: "", fileUrl: fileUrl || "", w: isMedia ? undefined : 700, h: isMedia ? undefined : 400 },
@@ -88,7 +87,7 @@ export default function Detail() {
   }, [setNodes]);
 
   const addEdge = useCallback((params: Connection) => {
-    setEdges((prev) => rfAddEdge({ ...params, id: `edge-${++edgeIdCounter}` }, prev));
+    setEdges((prev) => rfAddEdge({ ...params, id: `edge-${++edgeIdCounterRef.current}` }, prev));
   }, [setEdges]);
 
   const deleteNode = useCallback((nodeId: string) => {
@@ -102,7 +101,7 @@ export default function Detail() {
     setNodes((prev) => {
       const node = prev.find((n) => n.id === nodeId);
       if (!node) return prev;
-      const copy = { ...node, id: `node-${++nodeIdCounter}`, position: { x: node.position.x + 30, y: node.position.y + 30 } };
+      const copy = { ...node, id: `node-${++nodeIdCounterRef.current}`, position: { x: node.position.x + 30, y: node.position.y + 30 } };
       return [...prev, copy];
     });
   }, [setNodes]);
@@ -130,43 +129,7 @@ export default function Detail() {
     return () => window.removeEventListener("keydown", onKey);
   }, [editingNodeId, edgeToDelete, selectedNode, removeEdge, deleteNode]);
 
-  // Load from IndexedDB
-  useEffect(() => {
-    loadCanvas().then(async (data) => {
-      if (loadedRef.current) return;
-      const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
-        const fileUrl: string = n.data?.fileUrl || "";
-        if (fileUrl && !fileUrl.startsWith("blob:") && !fileUrl.startsWith("http")) {
-          const assetUrl = await loadAssetUrl(fileUrl);
-          return { ...n, data: { ...n.data, fileUrl: assetUrl || fileUrl } };
-        }
-        return n;
-      }));
-      // Sync counter from loaded IDs
-      restoredNodes.forEach((n: any) => {
-        const match = n.id.match(/^node-(\d+)$/);
-        if (match) nodeIdCounter = Math.max(nodeIdCounter, parseInt(match[1]));
-      });
-      data.edges.forEach((e: any) => {
-        const match = e.id.match(/^edge-(\d+)$/);
-        if (match) edgeIdCounter = Math.max(edgeIdCounter, parseInt(match[1]));
-      });
-      if (restoredNodes.length > 0) {
-        setNodes(restoredNodes as any);
-        setEdges(data.edges as any);
-      }
-      loadedRef.current = true;
-    });
-  }, [setNodes, setEdges]);
-
-  // Save to IndexedDB
-  useEffect(() => {
-    if (!loadedRef.current) return;
-    const timer = setTimeout(() => {
-      saveCanvas(nodes as any, edges as any);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [nodes, edges]);
+  useCanvasPersistence(nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
 
   // Menu close
   useEffect(() => {
