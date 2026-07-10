@@ -1,9 +1,13 @@
 import { useReducer, useEffect, useCallback, useRef, useState } from "react";
-import type { SubtitleItem, SubtitleTrack } from "../../../lib/types";
+import type { SubtitleItem, SubtitleTrack, SubtitleStyle } from "../../../lib/types";
+import { DEFAULT_SUBTITLE_STYLE } from "../../../lib/types";
 import { saveSubtitleTrack, loadSubtitleTrack } from "../../../lib/store";
 import { parseSRT } from "./utils";
 import SubtitlePlayerBar from "./SubtitlePlayerBar";
+import SubtitleTimeline from "./SubtitleTimeline";
 import SubtitleList from "./SubtitleList";
+import SubtitleStyleEditor from "./SubtitleStyleEditor";
+import ExportModal from "./ExportModal";
 import "./SubtitlePanel.css";
 
 let itemIdCounter = 0;
@@ -144,6 +148,8 @@ export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
   const [currentTime, setCurrentTime] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
+  const [showExport, setShowExport] = useState(false);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -188,18 +194,9 @@ export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
     }
   }, [videoEl, track.language]);
 
-  const handleExport = useCallback(async () => {
-    const { toSRT } = await import("./utils");
-    if (track.items.length === 0) return;
-    const srtContent = toSRT(track.items);
-    const blob = new Blob([srtContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `subtitle-${nodeId}.srt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [track.items, nodeId]);
+  const handleExport = useCallback(() => {
+    setShowExport(true);
+  }, []);
 
   return (
     <>
@@ -267,6 +264,20 @@ export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
               onTimeUpdate={setCurrentTime}
               duration={duration}
             />
+            <SubtitleTimeline
+              items={track.items}
+              duration={duration}
+              currentTime={currentTime}
+              onSeek={(t) => { if (videoEl) videoEl.currentTime = t; }}
+              onUpdateItemTime={(id, start, end) => {
+                dispatch({ type: "UPDATE_ITEM_TIME", id, startTime: start, endTime: end });
+              }}
+              activeItemId={
+                track.items.find(
+                  (it) => currentTime >= it.startTime && currentTime <= it.endTime
+                )?.id
+              }
+            />
             <SubtitleList
               items={track.items}
               currentTime={currentTime}
@@ -291,13 +302,25 @@ export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
         )}
 
         {!generating && track.items.length > 0 && (
-          <div style={{ padding: "12px 16px", borderTop: "1px solid #21262d" }}>
-            <button className="sub-panel-btn primary" style={{ width: "100%" }} onClick={handleExport}>
-              导出 SRT 字幕
-            </button>
-          </div>
+          <>
+            <SubtitleStyleEditor style={subtitleStyle} onChange={setSubtitleStyle} />
+            <div style={{ padding: "12px 16px", borderTop: "1px solid #21262d" }}>
+              <button className="sub-panel-btn primary" style={{ width: "100%" }} onClick={handleExport}>
+                导出字幕 / 烧录
+              </button>
+            </div>
+          </>
         )}
       </div>
+
+      {showExport && (
+        <ExportModal
+          items={track.items}
+          style={subtitleStyle}
+          nodeId={nodeId}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </>
   );
 }
