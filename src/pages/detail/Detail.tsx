@@ -6,9 +6,7 @@ import {
   Background,
   useNodesState,
   useEdgesState,
-  addEdge as rfAddEdge,
   type Edge,
-  type Connection,
   BackgroundVariant,
   SelectionMode,
 } from "@xyflow/react";
@@ -17,7 +15,9 @@ import { useClipLoader } from "./hooks/useClipLoader";
 import { useCanvasPersistence } from "./hooks/useCanvasPersistence";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useContextMenu } from "./hooks/useContextMenu";
-import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
+import { useNodeOperations } from "./hooks/useNodeOperations";
+import { useFileUpload } from "./hooks/useFileUpload";
+import { useMediaResizer } from "./hooks/useMediaResizer";
 import ContextMenus from "./ContextMenus";
 import ImageToolbox from "./ImageToolbox";
 import TextNode from "./nodes/TextNode";
@@ -50,8 +50,6 @@ export default function Detail() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadPosRef = useRef({ x: 0, y: 0 });
 
   const rfInstance = useRef<any>(null);
   const loadedRef = useRef(false);
@@ -75,40 +73,13 @@ export default function Detail() {
     return pos;
   }, [viewportCenter]);
 
-  const addNode = useCallback((type: string, x: number, y: number, fileUrl?: string) => {
-    const isMedia = type === "image-upload" || type === "video-upload";
-    const id = `node-${++nodeIdCounterRef.current}`;
-    const newNode: FlowNode = {
-      id, type: type, position: { x, y },
-      data: { type, content: "", fileUrl: fileUrl || "", w: isMedia ? undefined : 700, h: isMedia ? undefined : 400 },
-    };
-    setNodes((prev) => [...prev, newNode]);
-    return id;
-  }, [setNodes]);
+  const { addNode, deleteNode, duplicateNode, addEdge, removeEdge } = useNodeOperations(
+    setNodes, setEdges, setSelectedNode, nodeIdCounterRef, edgeIdCounterRef
+  );
 
-  const addEdge = useCallback((params: Connection) => {
-    setEdges((prev) => rfAddEdge({ ...params, id: `edge-${++edgeIdCounterRef.current}` }, prev));
-  }, [setEdges]);
+  const { resizeMediaNode } = useMediaResizer(setNodes);
 
-  const deleteNode = useCallback((nodeId: string) => {
-    setNodes((prev) => prev.filter((n) => n.id !== nodeId));
-    setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
-    setSelectedNode(null);
-    deleteAssetDir(nodeId);
-  }, [setNodes, setEdges]);
-
-  const duplicateNode = useCallback((nodeId: string) => {
-    setNodes((prev) => {
-      const node = prev.find((n) => n.id === nodeId);
-      if (!node) return prev;
-      const copy = { ...node, id: `node-${++nodeIdCounterRef.current}`, position: { x: node.position.x + 30, y: node.position.y + 30 } };
-      return [...prev, copy];
-    });
-  }, [setNodes]);
-
-  const removeEdge = useCallback((edgeId: string) => {
-    setEdges((prev) => prev.filter((e) => e.id !== edgeId));
-  }, [setEdges]);
+  const { fileInputRef, uploadPosRef, handleFileChange } = useFileUpload(addNode, setNodes, resizeMediaNode);
 
   useKeyboardShortcuts({
     editingNodeId, edgeToDelete, selectedNode,
@@ -117,46 +88,6 @@ export default function Detail() {
   });
 
   useCanvasPersistence(nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
-
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const type = file.type.startsWith("video/") ? "video-upload" : "image-upload";
-    const nodeId = addNode(type, uploadPosRef.current.x, uploadPosRef.current.y, "");
-    const path = await saveAsset(nodeId, file);
-    const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
-    setNodes((prev) => prev.map((n) => n.id === nodeId ? {
-      ...n, data: { ...n.data, fileUrl: url }
-    } : n));
-    // Auto-resize
-    if (type === "video-upload") {
-      const v = document.createElement("video");
-      v.preload = "metadata";
-      v.onloadedmetadata = () => {
-        const maxW = 700;
-        const w = Math.min(maxW, v.videoWidth);
-        const h = v.videoWidth ? (v.videoHeight / v.videoWidth) * w : 400;
-        setNodes((prev) => prev.map((n) => n.id === nodeId ? {
-          ...n, data: { ...n.data, w, h },
-          position: { x: n.position.x - w / 2, y: n.position.y - h / 2 }
-        } : n));
-      };
-      v.src = url;
-    } else {
-      const img = new Image();
-      img.onload = () => {
-        const maxW = 700;
-        const w = Math.min(maxW, img.naturalWidth);
-        const h = (img.naturalHeight / img.naturalWidth) * w;
-        setNodes((prev) => prev.map((n) => n.id === nodeId ? {
-          ...n, data: { ...n.data, w, h },
-          position: { x: n.position.x - w / 2, y: n.position.y - h / 2 }
-        } : n));
-      };
-      img.src = url;
-    }
-    e.target.value = "";
-  }, [addNode, setNodes]);
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
