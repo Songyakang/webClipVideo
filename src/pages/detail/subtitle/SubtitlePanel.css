@@ -1,0 +1,137 @@
+.subtitle-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 80;
+}
+
+.subtitle-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  z-index: 90;
+  background: #0d1117;
+  border-left: 1px solid #30363d;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+  animation: slide-in 0.2s ease-out;
+}
+
+@keyframes slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.sub-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #21262d;
+}
+
+.sub-panel-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #e6edf3;
+  font-weight: 600;
+}
+
+.sub-panel-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sub-panel-lang-select {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.sub-panel-lang-select:focus {
+  border-color: #58a6ff;
+}
+
+.sub-panel-btn {
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  background: #161b22;
+  color: #c9d1d9;
+}
+
+.sub-panel-btn:hover {
+  background: #21262d;
+}
+
+.sub-panel-btn.primary {
+  background: #238636;
+  border-color: rgba(240, 246, 252, 0.1);
+  color: #fff;
+}
+
+.sub-panel-btn.primary:hover {
+  background: #2ea043;
+}
+
+.sub-panel-btn.primary:disabled {
+  background: #1a3a26;
+  color: #6e7681;
+  cursor: not-allowed;
+}
+
+.sub-panel-generating {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #8b949e;
+  font-size: 14px;
+}
+
+.sub-panel-progress-bar {
+  width: 200px;
+  height: 4px;
+  background: #21262d;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sub-panel-progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% { width: 0%; margin-left: 0; }
+  50% { width: 60%; margin-left: 20%; }
+  100% { width: 0%; margin-left: 100%; }
+}
+
+.sub-panel-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #484f58;
+  font-size: 14px;
+}
