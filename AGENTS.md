@@ -7,3 +7,7 @@
 - 所有 commit 和 push 只允许针对 `editor-tarui`
 - 不允许切换到其他分支提交
 - 不允许合并到 `main` 或 `master`
+
+
+## 回复风格
+- 全程保持中文回复
