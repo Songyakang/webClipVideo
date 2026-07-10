@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { VideoClip } from "../../lib/types";
-import { getClipById, updateClip } from "../../lib/store";
+import { getClipById } from "../../lib/store";
 import { saveCanvas, loadCanvas } from "../../lib/db";
 import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
 import { MAIN_MENU, ADD_NODE_MENU, FLOW_ITEM_MENU } from "./menus";
@@ -24,6 +24,8 @@ import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import type { FlowNode } from "./nodes/types";
 import SubtitlePanel from "./subtitle/SubtitlePanel";
+import TitleEditor from "./TitleEditor";
+import EditOverlay from "./EditOverlay";
 import "./Detail.css";
 import "./nodes/nodes.css";
 
@@ -396,64 +398,5 @@ export default function Detail() {
       )}
 
     </div>
-  );
-}
-
-function TitleEditor({ clip, onUpdate }: { clip: any; onUpdate: (c: any) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(clip.title);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
-
-  const save = async () => {
-    const t = text.trim() || "未命名";
-    const updated = await updateClip(clip.id, { title: t });
-    if (updated) onUpdate(updated);
-    setText(t);
-    setEditing(false);
-  };
-
-  return editing ? (
-    <input
-      ref={inputRef}
-      className="title-input"
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={save}
-      onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setText(clip.title); setEditing(false); } }}
-    />
-  ) : (
-    <div className="title-display" onClick={() => setEditing(true)} title="点击编辑标题">
-      {clip.title}
-    </div>
-  );
-}
-
-function EditOverlay({ node, onCommit, rfInstance }: { node: FlowNode; onCommit: (text: string) => void; rfInstance: any }) {
-  const [text, setText] = useState(node.data.content || "");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pos = rfInstance.current?.flowToScreenPosition?.(node.position) ?? { x: 0, y: 0 };
-  const zoom = rfInstance.current?.getZoom?.() ?? 0.5;
-
-  useEffect(() => { textareaRef.current?.focus(); }, []);
-
-  return (
-    <textarea
-      ref={textareaRef}
-      className="canvas-textarea"
-      style={{
-        position: "fixed",
-        left: pos.x + 32 * zoom,
-        top: pos.y + 36 * zoom,
-        width: ((node.data.w || 700) - 64) * zoom,
-        height: ((node.data.h || 400) - 72) * zoom,
-        fontSize: 14 * zoom,
-      }}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => onCommit(text)}
-      placeholder="输入文本..."
-    />
   );
 }
