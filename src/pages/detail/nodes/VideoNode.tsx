@@ -1,7 +1,12 @@
+import { useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
 export default function VideoNode({ data, selected }: NodeProps) {
   const d = data as any;
+
+  const videoRefCallback = useCallback((el: HTMLVideoElement | null) => {
+    d.videoEl = el;
+  }, []);
   const w = d.w || 700;
   const h = d.h || 400;
   const isUpload = d.type === "video-upload";
@@ -16,6 +21,7 @@ export default function VideoNode({ data, selected }: NodeProps) {
       {hasSrc ? (
         <div className="node-video-wrap" style={{ width: w, height: h }}>
           <video
+            ref={videoRefCallback}
             src={d.fileUrl}
             playsInline
             preload="metadata"

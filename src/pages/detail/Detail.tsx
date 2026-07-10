@@ -187,14 +187,7 @@ export default function Detail() {
       {showSubtitles && selectedVideoNode && (
         <SubtitlePanel
           nodeId={selectedVideoNode.id}
-          videoEl={
-            (() => {
-              const nodeEl = document.querySelector(
-                `.react-flow__node[data-id="${selectedVideoNode.id}"] video`
-              ) as HTMLVideoElement | null;
-              return nodeEl;
-            })()
-          }
+          videoEl={selectedVideoNode.data?.videoEl ?? null}
           onClose={() => setShowSubtitles(false)}
         />
       )}

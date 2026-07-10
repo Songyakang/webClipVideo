@@ -6,6 +6,7 @@ export interface NodeData extends Record<string, unknown> {
   fileUrl?: string;
   w?: number;
   h?: number;
+  videoEl?: HTMLVideoElement | null;
 }
 
 export type FlowNode = Node<NodeData>;
