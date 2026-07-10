@@ -4,6 +4,7 @@ export interface NodeData extends Record<string, unknown> {
   type: string;
   content: string;
   fileUrl?: string;
+  assetPath?: string;
   w?: number;
   h?: number;
   videoEl?: HTMLVideoElement | null;

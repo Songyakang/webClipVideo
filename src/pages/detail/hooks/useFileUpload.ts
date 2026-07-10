@@ -17,7 +17,7 @@ export function useFileUpload(
     const path = await saveAsset(nodeId, file);
     const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
     setNodes((prev) => prev.map((n) => n.id === nodeId ? {
-      ...n, data: { ...n.data, fileUrl: url }
+      ...n, data: { ...n.data, fileUrl: url, assetPath: path }
     } : n));
     resizeMediaNode(nodeId, type, url);
     e.target.value = "";

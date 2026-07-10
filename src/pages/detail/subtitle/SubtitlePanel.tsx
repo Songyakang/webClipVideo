@@ -140,10 +140,11 @@ function emptyTrack(nodeId: string): SubtitleTrack {
 interface Props {
   nodeId: string;
   videoEl: HTMLVideoElement | null;
+  videoAssetPath?: string;
   onClose: () => void;
 }
 
-export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
+export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose }: Props) {
   const [track, dispatch] = useReducer(subtitleReducer, emptyTrack(nodeId));
   const [currentTime, setCurrentTime] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -174,15 +175,21 @@ export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
   const duration = videoEl?.duration || 0;
 
   const handleGenerate = useCallback(async () => {
-    if (!videoEl) return;
+    if (!videoEl || !videoAssetPath) return;
     setGenerating(true);
     dispatch({ type: "SET_STATUS", status: "generating" });
 
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      const nodeData = (videoEl as any)._subtitleNodeData;
+      const { resolveAssetPath } = await import("../../../lib/assets");
+      const fullPath = await resolveAssetPath(videoAssetPath);
+      if (!fullPath) {
+        dispatch({ type: "SET_STATUS", status: "empty" });
+        setGenerating(false);
+        return;
+      }
       const srtText = await invoke<string>("generate_subtitles", {
-        videoPath: nodeData?.filePath || "",
+        videoPath: fullPath,
         language: track.language,
       });
       dispatch({ type: "LOAD_SRT", srtText });
@@ -192,7 +199,7 @@ export default function SubtitlePanel({ nodeId, videoEl, onClose }: Props) {
     } finally {
       setGenerating(false);
     }
-  }, [videoEl, track.language]);
+  }, [videoEl, videoAssetPath, track.language]);
 
   const handleExport = useCallback(() => {
     setShowExport(true);

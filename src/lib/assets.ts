@@ -68,6 +68,13 @@ export async function loadAssetUrl(relativePath: string): Promise<string> {
   }
 }
 
+export async function resolveAssetPath(relativePath: string): Promise<string> {
+  if (!isTauri() || !relativePath) return "";
+  const baseDir = await ensureAssetDir();
+  if (!baseDir) return "";
+  return `${baseDir}/${relativePath}`;
+}
+
 export async function deleteAssetDir(nodeId: string): Promise<void> {
   if (!isTauri()) return;
   const baseDir = await ensureAssetDir();

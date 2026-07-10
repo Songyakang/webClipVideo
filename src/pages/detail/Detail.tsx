@@ -192,6 +192,7 @@ export default function Detail() {
               `.react-flow__node[data-id="${selectedVideoNode.id}"] video`
             ) as HTMLVideoElement | null
           }
+          videoAssetPath={selectedVideoNode.data?.assetPath}
           onClose={() => setShowSubtitles(false)}
         />
       )}
