@@ -13,8 +13,7 @@ import {
   SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { VideoClip } from "../../lib/types";
-import { getClipById } from "../../lib/store";
+import { useClipLoader } from "./hooks/useClipLoader";
 import { saveCanvas, loadCanvas } from "../../lib/db";
 import { saveAsset, loadAssetUrl, deleteAssetDir } from "../../lib/assets";
 import { MAIN_MENU, ADD_NODE_MENU, FLOW_ITEM_MENU } from "./menus";
@@ -45,7 +44,7 @@ interface MenuState { x: number; y: number; type: "main" | "addNode" | "flowItem
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [clip, setClip] = useState<VideoClip | null>(null);
+  const { clip, setClip } = useClipLoader(id);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -59,14 +58,6 @@ export default function Detail() {
 
   const rfInstance = useRef<any>(null);
   const loadedRef = useRef(false);
-
-  useEffect(() => {
-    if (!id) return;
-    getClipById(id).then((found) => {
-      if (!found) { navigate("/", { replace: true }); return; }
-      setClip(found);
-    });
-  }, [id, navigate]);
 
   const viewportCenter = useCallback(() => {
     const rf = rfInstance.current;
