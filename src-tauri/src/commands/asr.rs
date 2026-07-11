@@ -1,4 +1,15 @@
 use std::process::Command;
+use std::path::PathBuf;
+
+fn whisper_cli_path() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_default();
+    PathBuf::from(home).join("whisper.cpp/build/bin/whisper-cli")
+}
+
+fn model_path() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    format!("{}/whisper.cpp/models/ggml-medium.bin", home)
+}
 
 #[tauri::command]
 pub async fn generate_subtitles(
@@ -36,19 +47,22 @@ pub async fn generate_subtitles(
         language.clone()
     };
 
-    let whisper_status = Command::new("whisper")
+    let whisper = whisper_cli_path();
+    let model = model_path();
+
+    let whisper_status = Command::new(&whisper)
         .args([
-            "-m", "models/ggml-medium.bin",
+            "-m", &model,
             "-f", audio_path.to_str().unwrap_or("/tmp/audio.wav"),
+            "-l", &lang_flag,
             "-osrt",
             "-of", srt_path.to_str().unwrap_or("/tmp/output"),
-            "-l", &lang_flag,
             "-t", "4",
         ])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .map_err(|e| format!("Failed to run whisper: {}", e))?;
+        .map_err(|e| format!("Failed to run whisper-cli: {}", e))?;
 
     // Clean up audio file
     let _ = std::fs::remove_file(&audio_path);
