@@ -7,12 +7,13 @@ interface Props {
   items: SubtitleItem[];
   style: SubtitleStyle;
   nodeId: string;
+  videoAssetPath: string;
   onClose: () => void;
 }
 
 type ExportFormat = "srt" | "ass" | "burn";
 
-export default function ExportModal({ items, style, nodeId, onClose }: Props) {
+export default function ExportModal({ items, style, nodeId, videoAssetPath, onClose }: Props) {
   const [format, setFormat] = useState<ExportFormat>("srt");
   const [burnStatus, setBurnStatus] = useState<"encoding" | "done" | "error" | null>(null);
   const [burnMessage, setBurnMessage] = useState("");
@@ -31,9 +32,11 @@ export default function ExportModal({ items, style, nodeId, onClose }: Props) {
       try {
         const { invoke } = await import("@tauri-apps/api/core");
         const { toASS } = await import("./utils");
+        const { resolveAssetPath } = await import("../../../lib/assets");
         const assContent = toASS(items, style);
+        const fullVideoPath = await resolveAssetPath(videoAssetPath);
         const outputPath = await invoke<string>("export_with_subtitles", {
-          videoPath: "",
+          videoPath: fullVideoPath,
           assContent,
           outputPath: "",
         });

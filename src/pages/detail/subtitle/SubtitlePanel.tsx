@@ -325,6 +325,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
           items={track.items}
           style={subtitleStyle}
           nodeId={nodeId}
+          videoAssetPath={videoAssetPath || ""}
           onClose={() => setShowExport(false)}
         />
       )}
