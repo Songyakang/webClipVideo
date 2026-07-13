@@ -1,0 +1,117 @@
+/* /Users/songyakang/Desktop/奇思妙想/webVideoClip/src/pages/detail/subtitle/BurnProgressOverlay.css */
+
+.burn-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: burn-fade-in 0.3s ease-out;
+}
+
+@keyframes burn-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.burn-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 16px;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: 360px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.burn-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #21262d;
+  border-top-color: #58a6ff;
+  border-radius: 50%;
+  animation: burn-spin 0.8s linear infinite;
+}
+
+@keyframes burn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.burn-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #21262d;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.burn-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #238636, #58a6ff);
+  border-radius: 3px;
+  width: 30%;
+  animation: burn-bar-slide 2s ease-in-out infinite;
+}
+
+@keyframes burn-bar-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(430%); }
+}
+
+.burn-title {
+  font-size: 16px;
+  color: #e6edf3;
+  font-weight: 600;
+  margin: 0;
+}
+
+.burn-message {
+  font-size: 13px;
+  color: #8b949e;
+  margin: 0;
+}
+
+.burn-done-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #238636;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.burn-error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #da3633;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.burn-btn {
+  margin-top: 8px;
+  padding: 8px 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #e6edf3;
+  transition: background 0.15s;
+}
+
+.burn-btn:hover {
+  background: #30363d;
+}
