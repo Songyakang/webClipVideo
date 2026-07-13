@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useCallback, useRef, useState } from "react";
-import type { SubtitleItem, SubtitleTrack, SubtitleStyle } from "../../../lib/types";
+import type { SubtitleItem, SubtitleTrack, SubtitleStyle, VoiceProfile } from "../../../lib/types";
 import { DEFAULT_SUBTITLE_STYLE } from "../../../lib/types";
 import { saveSubtitleTrack, loadSubtitleTrack } from "../../../lib/store";
 import { parseSRT } from "./utils";
@@ -151,6 +151,10 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
   const [generating, setGenerating] = useState(false);
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
   const [showExport, setShowExport] = useState(false);
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [audioMap, setAudioMap] = useState<Map<string, string>>(new Map());
+  const [selectedVoice, setSelectedVoice] = useState<string>("original");
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -204,6 +208,56 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
   const handleExport = useCallback(() => {
     setShowExport(true);
   }, []);
+
+  const handleExtractVoice = useCallback(async () => {
+    if (!videoAssetPath) return;
+    setGenerating(true);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { resolveAssetPath } = await import("../../../lib/assets");
+      const fullPath = await resolveAssetPath(videoAssetPath);
+      if (!fullPath) return;
+      const profile = await invoke<VoiceProfile>("extract_voice_profile", {
+        videoPath: fullPath,
+        nodeId: nodeId,
+      });
+      setVoiceProfile(profile);
+    } catch (err) {
+      console.error("Voice extraction failed:", err);
+    } finally {
+      setGenerating(false);
+    }
+  }, [videoAssetPath, nodeId]);
+
+  const handleGenerateSpeech = useCallback(async () => {
+    setSynthesizing(true);
+    const newAudioMap = new Map<string, string>();
+
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      for (const item of track.items) {
+        if (!item.text.trim()) continue;
+        try {
+          const targetDuration = item.endTime - item.startTime;
+          const wavPath = await invoke<string>("synthesize_speech", {
+            nodeId: nodeId,
+            itemId: item.id,
+            text: item.text,
+            targetDuration,
+            voice: selectedVoice,
+          });
+          newAudioMap.set(item.id, wavPath);
+        } catch (err) {
+          console.error(`TTS failed for item ${item.id}:`, err);
+        }
+      }
+    } finally {
+      setSynthesizing(false);
+    }
+
+    setAudioMap(newAudioMap);
+  }, [track.items, nodeId, selectedVoice]);
 
   return (
     <>
@@ -265,6 +319,35 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
 
         {!generating && track.items.length > 0 && (
           <>
+            <div style={{ padding: "8px 16px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                className="sub-panel-btn"
+                onClick={handleExtractVoice}
+                disabled={generating}
+              >
+                {voiceProfile ? "✓ 已提取声纹" : "提取声音特征"}
+              </button>
+              <select
+                className="sub-panel-lang-select"
+                value={selectedVoice}
+                onChange={(e) => setSelectedVoice(e.target.value)}
+                style={{ fontSize: 12 }}
+              >
+                <option value="original">原声（需提取声纹）</option>
+                <option value="zh-CN-XiaoxiaoNeural">晓晓 (女)</option>
+                <option value="zh-CN-YunxiNeural">云希 (男)</option>
+                <option value="zh-CN-XiaoyiNeural">晓伊 (女)</option>
+                <option value="zh-CN-YunjianNeural">云健 (男)</option>
+                <option value="zh-CN-YunxiaNeural">云夏 (男)</option>
+              </select>
+              <button
+                className="sub-panel-btn primary"
+                onClick={handleGenerateSpeech}
+                disabled={synthesizing || (selectedVoice === "original" && !voiceProfile)}
+              >
+                {synthesizing ? "生成中..." : "生成语音"}
+              </button>
+            </div>
             <SubtitlePlayerBar
               videoEl={videoEl}
               currentTime={currentTime}
@@ -326,6 +409,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
           style={subtitleStyle}
           nodeId={nodeId}
           videoAssetPath={videoAssetPath || ""}
+          audioMap={audioMap}
           onClose={() => setShowExport(false)}
         />
       )}

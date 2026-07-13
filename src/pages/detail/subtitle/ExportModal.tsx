@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SubtitleItem, SubtitleStyle } from "../../../lib/types";
+import type { SubtitleItem, SubtitleStyle, AudioReplacement } from "../../../lib/types";
 import BurnProgressOverlay from "./BurnProgressOverlay";
 import "./ExportModal.css";
 
@@ -8,12 +8,13 @@ interface Props {
   style: SubtitleStyle;
   nodeId: string;
   videoAssetPath: string;
+  audioMap: Map<string, string>;
   onClose: () => void;
 }
 
 type ExportFormat = "srt" | "ass" | "burn";
 
-export default function ExportModal({ items, style, nodeId, videoAssetPath, onClose }: Props) {
+export default function ExportModal({ items, style, nodeId, videoAssetPath, audioMap, onClose }: Props) {
   const [format, setFormat] = useState<ExportFormat>("srt");
   const [burnStatus, setBurnStatus] = useState<"encoding" | "done" | "error" | null>(null);
   const [burnMessage, setBurnMessage] = useState("");
@@ -35,10 +36,24 @@ export default function ExportModal({ items, style, nodeId, videoAssetPath, onCl
         const { resolveAssetPath } = await import("../../../lib/assets");
         const assContent = toASS(items, style);
         const fullVideoPath = await resolveAssetPath(videoAssetPath);
-        const outputPath = await invoke<string>("export_with_subtitles", {
+
+        // 构造 AudioReplacement 列表
+        const replacements: AudioReplacement[] = [];
+        audioMap.forEach((wavPath, itemId) => {
+          const item = items.find((it) => it.id === itemId);
+          if (item) {
+            replacements.push({
+              startTime: item.startTime,
+              endTime: item.endTime,
+              wavPath,
+            });
+          }
+        });
+
+        const outputPath = await invoke<string>("burn_with_synthetic_audio", {
           videoPath: fullVideoPath,
           assContent,
-          outputPath: "",
+          replacements,
         });
         setBurnMessage(`已保存至: ${outputPath}`);
         setBurnStatus("done");

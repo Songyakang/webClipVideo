@@ -44,3 +44,14 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   bold: false,
   italic: false,
 };
+
+export interface VoiceProfile {
+  embedding: number[];
+  createdAt: string;
+}
+
+export interface AudioReplacement {
+  startTime: number;
+  endTime: number;
+  wavPath: string;
+}
