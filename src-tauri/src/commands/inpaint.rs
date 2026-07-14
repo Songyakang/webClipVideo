@@ -11,6 +11,24 @@ pub struct InpaintProgress {
     pub percent: f64,
 }
 
+fn resolve_script_path() -> Result<PathBuf, String> {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let candidates = vec![
+        cwd.join("scripts").join("inpaint_cli.py"),
+        cwd.join("../scripts").join("inpaint_cli.py"),
+        cwd.join("../../scripts").join("inpaint_cli.py"),
+    ];
+    for p in &candidates {
+        if p.exists() {
+            return Ok(p.clone());
+        }
+    }
+    Err(format!(
+        "inpaint_cli.py not found. Tried: {}",
+        candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+    ))
+}
+
 #[tauri::command]
 pub async fn remove_hard_subtitles(
     app: tauri::AppHandle,
@@ -36,35 +54,19 @@ pub async fn remove_hard_subtitles(
         output_path
     };
 
-    // Resolve script path: try multiple locations
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let script_path = {
-        let candidates = vec![
-            cwd.join("scripts").join("inpaint_cli.py"),
-            cwd.join("../scripts").join("inpaint_cli.py"),
-            cwd.join("../../scripts").join("inpaint_cli.py"),
-        ];
-        let mut found = None;
-        for p in &candidates {
-            if p.exists() {
-                found = Some(p.clone());
-                break;
-            }
-        }
-        found.ok_or_else(|| {
-            format!(
-                "inpaint_cli.py not found. Tried: {}",
-                candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
-            )
-        })?
-    };
+    let frames_dir = std::env::temp_dir().join(format!("inpaint_frames_{}", stem));
+    let _ = std::fs::create_dir_all(&frames_dir);
 
+    let script_path = resolve_script_path()?;
+
+    // Step 1: Python inpainting, outputs PNG frames to temp dir
     let mut child = Command::new("python3")
         .args([
             script_path.to_str().unwrap_or("scripts/inpaint_cli.py"),
             "process",
             &video_path,
-            &out,
+            "--frames-dir",
+            frames_dir.to_str().unwrap_or(""),
             "--x", &x.to_string(),
             "--y", &y.to_string(),
             "--w", &width.to_string(),
@@ -77,16 +79,19 @@ pub async fn remove_hard_subtitles(
 
     let stdout = child.stdout.take().ok_or("No stdout")?;
     let reader = std::io::BufReader::new(stdout);
+    let mut done_info: Option<serde_json::Value> = None;
 
     for line in reader.lines() {
         let line = line.map_err(|e| format!("Read error: {}", e))?;
         if let Ok(progress) = serde_json::from_str::<serde_json::Value>(&line) {
             if progress.get("error").is_some() {
                 let _ = child.kill();
+                let _ = std::fs::remove_dir_all(&frames_dir);
                 return Err(progress["error"].as_str().unwrap_or("unknown error").to_string());
             }
             if progress.get("status").is_some() {
-                break; // done
+                done_info = Some(progress);
+                break;
             }
             let payload = InpaintProgress {
                 frame: progress["frame"].as_i64().unwrap_or(0) as i32,
@@ -104,7 +109,51 @@ pub async fn remove_hard_subtitles(
             use std::io::Read;
             let _ = stderr.read_to_string(&mut stderr_output);
         }
+        let _ = std::fs::remove_dir_all(&frames_dir);
         return Err(format!("Inpainting process failed: {}", stderr_output));
+    }
+
+    let info = done_info.ok_or("No done info from Python process")?;
+    let frame_count = info["frame_count"].as_i64().unwrap_or(0);
+    let fps = info["fps"].as_f64().unwrap_or(30.0);
+
+    if frame_count == 0 {
+        let _ = std::fs::remove_dir_all(&frames_dir);
+        return Err("No frames processed".into());
+    }
+
+    // Step 2: FFmpeg encode PNG sequence + original audio
+    let zfill = frame_count.to_string().len();
+    let frame_pattern = frames_dir.join(format!("frame_%0{}d.png", zfill));
+
+    let ffmpeg_status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-framerate", &fps.to_string(),
+            "-i", frame_pattern.to_str().unwrap_or(""),
+            "-i", &video_path,
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "medium",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            &out,
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .status()
+        .map_err(|e| {
+            let _ = std::fs::remove_dir_all(&frames_dir);
+            format!("Failed to run ffmpeg: {}", e)
+        })?;
+
+    // Clean up frames dir
+    let _ = std::fs::remove_dir_all(&frames_dir);
+
+    if !ffmpeg_status.success() {
+        return Err("FFmpeg encoding failed".into());
     }
 
     // Optionally strip soft subtitles
@@ -165,7 +214,6 @@ pub async fn preview_inpaint_frame(
     let frame_path = tmp_dir.join("inpaint_preview_original.png");
     let result_path = tmp_dir.join("inpaint_preview_clean.png");
 
-    // Extract a single frame at the specified time
     let status = Command::new("ffmpeg")
         .args([
             "-y",
@@ -183,27 +231,7 @@ pub async fn preview_inpaint_frame(
         return Err("Failed to extract frame from video".into());
     }
 
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let script_path = {
-        let candidates = vec![
-            cwd.join("scripts").join("inpaint_cli.py"),
-            cwd.join("../scripts").join("inpaint_cli.py"),
-            cwd.join("../../scripts").join("inpaint_cli.py"),
-        ];
-        let mut found = None;
-        for p in &candidates {
-            if p.exists() {
-                found = Some(p.clone());
-                break;
-            }
-        }
-        found.ok_or_else(|| {
-            format!(
-                "inpaint_cli.py not found. Tried: {}",
-                candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
-            )
-        })?
-    };
+    let script_path = resolve_script_path()?;
 
     let output = Command::new("python3")
         .args([

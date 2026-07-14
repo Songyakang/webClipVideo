@@ -3,23 +3,22 @@
 Subtitle removal CLI using OpenCV TELEA inpainting.
 
 Usage:
-    python3 inpaint_cli.py process <video> <output> --x <px> --y <px> --w <px> --h <px>
+    python3 inpaint_cli.py process <video> --frames-dir <dir> --x <px> --y <px> --w <px> --h <px>
     python3 inpaint_cli.py preview <image> <output> --x <px> --y <px> --w <px> --h <px>
 """
 
 import sys
 import json
 import argparse
+import os
 import cv2
 import numpy as np
-
 
 MASK_DILATE_PX = 15
 INPAINT_RADIUS = 10
 
 
 def build_mask(frame_shape, x, y, w, h):
-    """Create a binary mask covering the subtitle region, dilated to avoid edge artifacts."""
     mask = np.zeros(frame_shape[:2], dtype=np.uint8)
     mask[y : y + h, x : x + w] = 255
     kernel = np.ones((MASK_DILATE_PX, MASK_DILATE_PX), np.uint8)
@@ -41,15 +40,12 @@ def cmd_process(args):
     if total_frames <= 0:
         total_frames = 999999
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(args.output, fourcc, fps, (width, height))
-    if not out.isOpened():
-        print(json.dumps({"error": "Cannot open output video writer"}), flush=True)
-        sys.exit(1)
+    os.makedirs(args.frames_dir, exist_ok=True)
 
     mask = build_mask((height, width), args.x, args.y, args.w, args.h)
 
     frame_idx = 0
+    zfill = len(str(total_frames))
 
     while True:
         ret, frame = cap.read()
@@ -58,7 +54,9 @@ def cmd_process(args):
         frame_idx += 1
 
         frame = cv2.inpaint(frame, mask, INPAINT_RADIUS, cv2.INPAINT_TELEA)
-        out.write(frame)
+
+        out_path = os.path.join(args.frames_dir, f"frame_{frame_idx:0{zfill}d}.png")
+        cv2.imwrite(out_path, frame)
 
         if frame_idx % 10 == 0:
             progress = {
@@ -69,9 +67,15 @@ def cmd_process(args):
             print(json.dumps(progress), flush=True)
 
     cap.release()
-    out.release()
 
-    print(json.dumps({"status": "done", "output": args.output}), flush=True)
+    print(json.dumps({
+        "status": "done",
+        "frames_dir": args.frames_dir,
+        "frame_count": frame_idx,
+        "fps": fps,
+        "width": width,
+        "height": height,
+    }), flush=True)
 
 
 def cmd_preview(args):
@@ -92,7 +96,7 @@ def parse_args():
 
     p = sub.add_parser("process")
     p.add_argument("video")
-    p.add_argument("output")
+    p.add_argument("--frames-dir", type=str, required=True)
     p.add_argument("--x", type=int, required=True)
     p.add_argument("--y", type=int, required=True)
     p.add_argument("--w", type=int, required=True)
