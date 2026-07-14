@@ -205,17 +205,18 @@ export async function updateClip(
 
 export async function deleteClip(id: string): Promise<boolean> {
   const db = await openDB();
-  const store = db.transaction(STORE_CLIPS, "readwrite").objectStore(STORE_CLIPS);
+  const tx = db.transaction(STORE_CLIPS, "readwrite");
+  const store = tx.objectStore(STORE_CLIPS);
   const existing: VideoClip | undefined = await new Promise((resolve, reject) => {
     const req = store.get(id);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
   if (!existing) { db.close(); return false; }
+  store.delete(id);
   await new Promise<void>((resolve, reject) => {
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
   db.close();
   return true;

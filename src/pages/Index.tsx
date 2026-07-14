@@ -29,8 +29,14 @@ export default function Index() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("确定删除该片段？")) return;
-    await deleteClip(id);
-    refresh();
+    try {
+      const ok = await deleteClip(id);
+      if (ok) {
+        setClips((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
   };
 
   const formatDuration = (s: number) => {
