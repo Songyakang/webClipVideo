@@ -19,7 +19,7 @@ export function useCanvasPersistence(
       const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
         const assetPath: string = n.data?.assetPath || "";
         // Blob URLs expire after session ends, always regenerate from assetPath
-        if (assetPath && n.data?.type?.includes("upload")) {
+        if (assetPath && n.type?.includes("upload")) {
           const assetUrl = await loadAssetUrl(assetPath);
           return { ...n, data: { ...n.data, fileUrl: assetUrl || n.data.fileUrl } };
         }
