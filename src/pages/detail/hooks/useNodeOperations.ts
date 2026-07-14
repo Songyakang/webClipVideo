@@ -4,6 +4,7 @@ import { deleteAssetDir } from "../../../lib/assets";
 import type { FlowNode } from "../nodes/types";
 
 export function useNodeOperations(
+  projectId: string,
   setNodes: React.Dispatch<React.SetStateAction<FlowNode[]>>,
   setEdges: React.Dispatch<React.SetStateAction<any[]>>,
   setSelectedNode: (n: FlowNode | null) => void,
@@ -25,8 +26,8 @@ export function useNodeOperations(
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e: any) => e.source !== nodeId && e.target !== nodeId));
     setSelectedNode(null);
-    deleteAssetDir(nodeId);
-  }, [setNodes, setEdges, setSelectedNode]);
+    deleteAssetDir(projectId, nodeId);
+  }, [projectId, setNodes, setEdges, setSelectedNode]);
 
   const duplicateNode = useCallback((nodeId: string) => {
     setNodes((prev) => {

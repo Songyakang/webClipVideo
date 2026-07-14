@@ -28,23 +28,22 @@ export async function getAssetDir(): Promise<string> {
   return baseDir || "";
 }
 
-export async function saveAsset(nodeId: string, file: File): Promise<string> {
+export async function saveAsset(projectId: string, nodeId: string, file: File): Promise<string> {
   if (!isTauri()) {
-    // Browser fallback: return object URL
     return URL.createObjectURL(file);
   }
   const baseDir = await ensureAssetDir();
   if (!baseDir) return URL.createObjectURL(file);
   const { mkdir } = await import("@tauri-apps/plugin-fs");
   const { writeFile } = await import("@tauri-apps/plugin-fs");
-  const nodeDir = `${baseDir}/${nodeId}`;
+  const nodeDir = `${baseDir}/${projectId}/${nodeId}`;
   await mkdir(nodeDir, { recursive: true });
   const ext = file.name.split(".").pop() || "bin";
   const filename = `${Date.now()}.${ext}`;
   const filePath = `${nodeDir}/${filename}`;
   const buf = await file.arrayBuffer();
   await writeFile(filePath, new Uint8Array(buf));
-  return `${nodeId}/${filename}`; // relative path
+  return `${projectId}/${nodeId}/${filename}`; // relative path
 }
 
 export async function loadAssetUrl(relativePath: string): Promise<string> {
@@ -81,12 +80,12 @@ export async function getAssetSrc(relativePath: string): Promise<string> {
   return convertFileSrc(fullPath);
 }
 
-export async function deleteAssetDir(nodeId: string): Promise<void> {
+export async function deleteAssetDir(projectId: string, nodeId: string): Promise<void> {
   if (!isTauri()) return;
   const baseDir = await ensureAssetDir();
   if (!baseDir) return;
   const { remove, exists } = await import("@tauri-apps/plugin-fs");
-  const nodeDir = `${baseDir}/${nodeId}`;
+  const nodeDir = `${baseDir}/${projectId}/${nodeId}`;
   if (await exists(nodeDir)) {
     await remove(nodeDir, { recursive: true });
   }

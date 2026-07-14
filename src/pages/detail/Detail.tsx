@@ -74,12 +74,12 @@ export default function Detail() {
   }, [viewportCenter]);
 
   const { addNode, deleteNode, duplicateNode, addEdge, removeEdge } = useNodeOperations(
-    setNodes, setEdges, setSelectedNode, nodeIdCounterRef, edgeIdCounterRef
+    id!, setNodes, setEdges, setSelectedNode, nodeIdCounterRef, edgeIdCounterRef
   );
 
   const { resizeMediaNode } = useMediaResizer(setNodes);
 
-  const { fileInputRef, uploadPosRef, handleFileChange } = useFileUpload(addNode, setNodes, resizeMediaNode);
+  const { fileInputRef, uploadPosRef, handleFileChange } = useFileUpload(id!, addNode, setNodes, resizeMediaNode);
 
   useKeyboardShortcuts({
     editingNodeId, edgeToDelete, selectedNode,

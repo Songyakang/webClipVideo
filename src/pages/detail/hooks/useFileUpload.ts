@@ -2,6 +2,7 @@ import { useRef, useCallback } from "react";
 import { saveAsset, getAssetSrc } from "../../../lib/assets";
 
 export function useFileUpload(
+  projectId: string,
   addNode: (type: string, x: number, y: number, fileUrl?: string) => string,
   setNodes: React.Dispatch<React.SetStateAction<any[]>>,
   resizeMediaNode: (nodeId: string, type: string, url: string) => void,
@@ -14,14 +15,14 @@ export function useFileUpload(
     if (!file) return;
     const type = file.type.startsWith("video/") ? "video-upload" : "image-upload";
     const nodeId = addNode(type, uploadPosRef.current.x, uploadPosRef.current.y, "");
-    const path = await saveAsset(nodeId, file);
+    const path = await saveAsset(projectId, nodeId, file);
     const url = path.startsWith("blob:") ? path : await getAssetSrc(path);
     setNodes((prev) => prev.map((n) => n.id === nodeId ? {
       ...n, data: { ...n.data, fileUrl: url, assetPath: path }
     } : n));
     resizeMediaNode(nodeId, type, url);
     e.target.value = "";
-  }, [addNode, setNodes, resizeMediaNode]);
+  }, [projectId, addNode, setNodes, resizeMediaNode]);
 
   return { fileInputRef, uploadPosRef, handleFileChange };
 }
