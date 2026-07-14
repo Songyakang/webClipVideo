@@ -9,7 +9,6 @@ import {
   searchClips as dbSearch,
   saveSubtitleTrack as dbSaveTrack,
   loadSubtitleTrack as dbLoadTrack,
-  deleteSubtitleTrack as dbDeleteTrack,
   clearCanvas as dbClearCanvas,
 } from "./db";
 
@@ -29,14 +28,13 @@ export async function addClip(
 
 export async function deleteClip(id: string): Promise<boolean> {
   const ok = await dbDelete(id);
-  if (ok) {
-    // Clean up canvas, subtitles, and asset files
-    dbClearCanvas().catch((err) => console.error("Failed to clear canvas:", err));
-    deleteProjectAssets(id).catch((err) =>
-      console.error("Failed to clean up project assets:", err)
-    );
-  }
-  return ok;
+  if (!ok) return false;
+
+  // Cascade cleanup (non-blocking): canvas + subtitles + asset files
+  dbClearCanvas().catch((e) => console.error("clearCanvas failed:", e));
+  deleteProjectAssets(id).catch((e) => console.error("deleteProjectAssets failed:", e));
+
+  return true;
 }
 
 export async function updateClip(
@@ -56,8 +54,4 @@ export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
 
 export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
   return dbLoadTrack(nodeId);
-}
-
-export async function deleteSubtitleTrack(nodeId: string): Promise<void> {
-  return dbDeleteTrack(nodeId);
 }

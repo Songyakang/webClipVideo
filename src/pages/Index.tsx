@@ -32,14 +32,8 @@ export default function Index() {
     if (!confirmDeleteId) return;
     const id = confirmDeleteId;
     setConfirmDeleteId(null);
-    try {
-      const ok = await deleteClip(id);
-      if (ok) {
-        setClips((prev) => prev.filter((c) => c.id !== id));
-      }
-    } catch (err) {
-      console.error("Delete failed:", err);
-    }
+    await deleteClip(id);
+    setClips((prev) => prev.filter((c) => c.id !== id));
   };
 
   const formatDuration = (s: number) => {
