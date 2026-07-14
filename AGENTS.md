@@ -34,5 +34,32 @@ imgEl.src = blobUrl;
 videoEl.src = `file://${fullPath}`; // 在 Tauri 中不可用
 ```
 
+## 常见陷阱
+
+### 持久化：IndexedDB 存取必须剔除 DOM 引用
+
+`n.data.videoEl`（VideoNode 通过 ref callback 写入的 HTMLVideoElement）无法被 IndexedDB 序列化（DataCloneError），导致整个 `saveCanvas` 事务静默回滚——画布数据从未写入磁盘。保存前必须 strip：
+
+```ts
+const { videoEl, ...cleanData } = n.data || {};
+```
+
+### 资产加载：视频大文件不要用 blob URL
+
+`loadAssetUrl` 把整个文件读进内存再转 blob URL，大视频会因内存/超时失败。应使用 `getAssetSrc(relativePath)` → 内部调用 Tauri 的 `convertFileSrc` 生成 `http://asset.localhost/...` URL，零内存拷贝。
+
+`convertFileSrc` 需要在 `tauri.conf.json` 配置 assetProtocol scope：
+```json
+{ "security": { "assetProtocol": { "enable": true, "scope": ["$DOCUMENT/editor-tarui/**"] } } }
+```
+
+### 画布恢复：用 assetPath 而非 fileUrl
+
+`fileUrl` 存的是 `blob:` URL，会话结束后失效。画布恢复时必须用 `assetPath`（持久化的相对路径）调用 `getAssetSrc` 重新生成。
+
+### resolveAssetPath("") 返回空字符串
+
+`resolveAssetPath` 内部有 `!relativePath` 判空，空字符串视为 falsy 直接返回 `""`。不要用它取 baseDir，直接用 `resolveAssetPath(relativePath)` 传实际路径。
+
 ## 回复风格
 - 全程保持中文回复
