@@ -16,6 +16,8 @@ import numpy as np
 
 MASK_DILATE_PX = 15
 INPAINT_RADIUS = 10
+SUBTITLE_EDGE_THRESHOLD = 0.005
+SMOOTH_ALPHA = 0.35
 
 
 def build_mask(frame_shape, x, y, w, h):
@@ -24,6 +26,14 @@ def build_mask(frame_shape, x, y, w, h):
     kernel = np.ones((MASK_DILATE_PX, MASK_DILATE_PX), np.uint8)
     mask = cv2.dilate(mask, kernel, iterations=1)
     return mask
+
+
+def has_subtitle(region):
+    """Detect subtitle text in region using Canny edge density."""
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    density = np.count_nonzero(edges) / edges.size
+    return density > SUBTITLE_EDGE_THRESHOLD
 
 
 def cmd_process(args):
@@ -45,7 +55,9 @@ def cmd_process(args):
     mask = build_mask((height, width), args.x, args.y, args.w, args.h)
 
     frame_idx = 0
+    skipped = 0
     zfill = len(str(total_frames))
+    prev_region = None  # for EMA temporal smoothing
 
     while True:
         ret, frame = cap.read()
@@ -53,18 +65,42 @@ def cmd_process(args):
             break
         frame_idx += 1
 
+        region = frame[args.y : args.y + args.h, args.x : args.x + args.w]
+
+        if not has_subtitle(region):
+            skipped += 1
+            prev_region = None  # reset smoothing across gaps
+            out_path = os.path.join(args.frames_dir, f"frame_{frame_idx:0{zfill}d}.png")
+            cv2.imwrite(out_path, frame)
+            if frame_idx % 10 == 0:
+                print(json.dumps({
+                    "frame": frame_idx, "total": total_frames,
+                    "percent": round(frame_idx / max(total_frames, 1) * 100, 1),
+                    "skipped": skipped,
+                }), flush=True)
+            continue
+
         frame = cv2.inpaint(frame, mask, INPAINT_RADIUS, cv2.INPAINT_TELEA)
+
+        # EMA temporal smoothing: blend current inpainted region with previous
+        if prev_region is not None:
+            curr_region = frame[args.y : args.y + args.h, args.x : args.x + args.w]
+            blended = cv2.addWeighted(curr_region, 1 - SMOOTH_ALPHA, prev_region, SMOOTH_ALPHA, 0)
+            frame[args.y : args.y + args.h, args.x : args.x + args.w] = blended
+
+        prev_region = frame[args.y : args.y + args.h, args.x : args.x + args.w].copy()
 
         out_path = os.path.join(args.frames_dir, f"frame_{frame_idx:0{zfill}d}.png")
         cv2.imwrite(out_path, frame)
 
         if frame_idx % 10 == 0:
-            progress = {
-                "frame": frame_idx,
-                "total": total_frames,
+            print(json.dumps({
+                "frame": frame_idx, "total": total_frames,
                 "percent": round(frame_idx / max(total_frames, 1) * 100, 1),
-            }
-            print(json.dumps(progress), flush=True)
+                "skipped": skipped,
+            }), flush=True)
+
+    cap.release()
 
     cap.release()
 
@@ -72,6 +108,7 @@ def cmd_process(args):
         "status": "done",
         "frames_dir": args.frames_dir,
         "frame_count": frame_idx,
+        "skipped": skipped,
         "fps": fps,
         "width": width,
         "height": height,
