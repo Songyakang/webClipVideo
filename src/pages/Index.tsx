@@ -8,6 +8,7 @@ export default function Index() {
   const navigate = useNavigate();
   const [clips, setClips] = useState<VideoClip[]>([]);
   const [query, setQuery] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const data = query ? await searchClips(query) : await getAllClips();
@@ -27,8 +28,10 @@ export default function Index() {
     navigate(`/detail/${clip.id}`);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("确定删除该片段？")) return;
+  const handleDeleteConfirm = async () => {
+    if (!confirmDeleteId) return;
+    const id = confirmDeleteId;
+    setConfirmDeleteId(null);
     try {
       const ok = await deleteClip(id);
       if (ok) {
@@ -119,7 +122,7 @@ export default function Index() {
                   className="btn-delete"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(clip.id);
+                    setConfirmDeleteId(clip.id);
                   }}
                 >
                   删除
@@ -129,6 +132,21 @@ export default function Index() {
           </div>
         ))}
       </div>
+
+      {/* Confirm dialog */}
+      {confirmDeleteId && (
+        <div className="modal-overlay" onClick={() => setConfirmDeleteId(null)}>
+          <div className="modal" style={{ width: 360, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+            <p style={{ color: "#e6edf3", fontSize: 15, margin: "0 0 20px" }}>
+              确定删除该片段？
+            </p>
+            <div className="modal-actions" style={{ justifyContent: "center" }}>
+              <button className="btn-cancel" onClick={() => setConfirmDeleteId(null)}>取消</button>
+              <button className="btn-primary" style={{ background: "#da3633" }} onClick={handleDeleteConfirm}>确定删除</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
