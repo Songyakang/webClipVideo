@@ -36,11 +36,28 @@ pub async fn remove_hard_subtitles(
         output_path
     };
 
-    // Resolve script path relative to the project
-    let script_path = std::env::current_dir()
-        .unwrap_or_default()
-        .join("scripts")
-        .join("inpaint_cli.py");
+    // Resolve script path: try multiple locations
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let script_path = {
+        let candidates = vec![
+            cwd.join("scripts").join("inpaint_cli.py"),
+            cwd.join("../scripts").join("inpaint_cli.py"),
+            cwd.join("../../scripts").join("inpaint_cli.py"),
+        ];
+        let mut found = None;
+        for p in &candidates {
+            if p.exists() {
+                found = Some(p.clone());
+                break;
+            }
+        }
+        found.ok_or_else(|| {
+            format!(
+                "inpaint_cli.py not found. Tried: {}",
+                candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+            )
+        })?
+    };
 
     let mut child = Command::new("python3")
         .args([
@@ -82,7 +99,12 @@ pub async fn remove_hard_subtitles(
 
     let status = child.wait().map_err(|e| format!("Process error: {}", e))?;
     if !status.success() {
-        return Err("Inpainting process failed".into());
+        let mut stderr_output = String::new();
+        if let Some(mut stderr) = child.stderr {
+            use std::io::Read;
+            let _ = stderr.read_to_string(&mut stderr_output);
+        }
+        return Err(format!("Inpainting process failed: {}", stderr_output));
     }
 
     // Optionally strip soft subtitles
@@ -161,10 +183,27 @@ pub async fn preview_inpaint_frame(
         return Err("Failed to extract frame from video".into());
     }
 
-    let script_path = std::env::current_dir()
-        .unwrap_or_default()
-        .join("scripts")
-        .join("inpaint_cli.py");
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let script_path = {
+        let candidates = vec![
+            cwd.join("scripts").join("inpaint_cli.py"),
+            cwd.join("../scripts").join("inpaint_cli.py"),
+            cwd.join("../../scripts").join("inpaint_cli.py"),
+        ];
+        let mut found = None;
+        for p in &candidates {
+            if p.exists() {
+                found = Some(p.clone());
+                break;
+            }
+        }
+        found.ok_or_else(|| {
+            format!(
+                "inpaint_cli.py not found. Tried: {}",
+                candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+            )
+        })?
+    };
 
     let output = Command::new("python3")
         .args([
