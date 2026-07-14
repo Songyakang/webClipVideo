@@ -142,10 +142,11 @@ interface Props {
   nodeId: string;
   videoEl: HTMLVideoElement | null;
   videoAssetPath?: string;
+  projectId?: string;
   onClose: () => void;
 }
 
-export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose }: Props) {
+export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, projectId, onClose }: Props) {
   const [track, dispatch] = useReducer(subtitleReducer, emptyTrack(nodeId));
   const [currentTime, setCurrentTime] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -427,6 +428,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
         <InpaintModal
           videoAssetPath={videoAssetPath || ""}
           nodeId={nodeId}
+          projectId={projectId || ""}
           onClose={() => setShowInpaint(false)}
           onReplaceVideo={(newPath) => {
             window.dispatchEvent(new CustomEvent("video-replaced", {

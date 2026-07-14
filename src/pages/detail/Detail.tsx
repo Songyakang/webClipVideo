@@ -193,6 +193,7 @@ export default function Detail() {
             ) as HTMLVideoElement | null
           }
           videoAssetPath={selectedVideoNode.data?.assetPath}
+          projectId={id!}
           onClose={() => setShowSubtitles(false)}
         />
       )}

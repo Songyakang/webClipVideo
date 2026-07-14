@@ -11,6 +11,7 @@ interface Region {
 interface Props {
   videoAssetPath: string;
   nodeId: string;
+  projectId: string;
   onClose: () => void;
   onReplaceVideo: (videoPath: string) => void;
 }
@@ -20,6 +21,7 @@ type Step = "choose" | "region" | "processing" | "done" | "error";
 export default function InpaintModal({
   videoAssetPath,
   nodeId: _nodeId,
+  projectId,
   onClose,
   onReplaceVideo,
 }: Props) {
@@ -183,6 +185,7 @@ export default function InpaintModal({
       const result = await invoke<string>("remove_hard_subtitles", {
         videoPath: fullPath,
         outputPath: "",
+        projectId,
         x: region.x,
         y: region.y,
         width: region.width,

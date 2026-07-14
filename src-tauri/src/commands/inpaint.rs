@@ -35,6 +35,7 @@ pub async fn remove_hard_subtitles(
     app: tauri::AppHandle,
     video_path: String,
     output_path: String,
+    project_id: String,
     x: u32,
     y: u32,
     width: u32,
@@ -70,7 +71,7 @@ pub async fn remove_hard_subtitles(
         output_path
     };
 
-    let frames_dir = std::env::temp_dir().join(format!("inpaint_frames_{}", stem));
+    let frames_dir = std::env::temp_dir().join(format!("inpaint_frames_{}_{}", project_id, stem));
     let _ = std::fs::create_dir_all(&frames_dir);
 
     let script_path = resolve_script_path()?;
