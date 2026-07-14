@@ -8,6 +8,7 @@ import SubtitleTimeline from "./SubtitleTimeline";
 import SubtitleList from "./SubtitleList";
 import SubtitleStyleEditor from "./SubtitleStyleEditor";
 import ExportModal from "./ExportModal";
+import InpaintModal from "./InpaintModal";
 import "./SubtitlePanel.css";
 
 let itemIdCounter = 0;
@@ -151,6 +152,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
   const [generating, setGenerating] = useState(false);
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
   const [showExport, setShowExport] = useState(false);
+  const [showInpaint, setShowInpaint] = useState(false);
   const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null);
   const [synthesizing, setSynthesizing] = useState(false);
   const [audioMap, setAudioMap] = useState<Map<string, string>>(new Map());
@@ -291,6 +293,13 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
                 重新生成
               </button>
             )}
+            <button
+              className="sub-panel-btn"
+              onClick={() => setShowInpaint(true)}
+              disabled={!videoAssetPath}
+            >
+              擦除字幕
+            </button>
             <button className="sub-panel-btn" onClick={onClose}>{'×'}</button>
           </div>
         </div>
@@ -411,6 +420,19 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, onClose
           videoAssetPath={videoAssetPath || ""}
           audioMap={audioMap}
           onClose={() => setShowExport(false)}
+        />
+      )}
+
+      {showInpaint && (
+        <InpaintModal
+          videoAssetPath={videoAssetPath || ""}
+          nodeId={nodeId}
+          onClose={() => setShowInpaint(false)}
+          onReplaceVideo={(newPath) => {
+            window.dispatchEvent(new CustomEvent("video-replaced", {
+              detail: { nodeId, newPath },
+            }));
+          }}
         />
       )}
     </>
