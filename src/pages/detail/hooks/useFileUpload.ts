@@ -1,5 +1,5 @@
 import { useRef, useCallback } from "react";
-import { saveAsset, loadAssetUrl } from "../../../lib/assets";
+import { saveAsset, getAssetSrc } from "../../../lib/assets";
 
 export function useFileUpload(
   addNode: (type: string, x: number, y: number, fileUrl?: string) => string,
@@ -15,7 +15,7 @@ export function useFileUpload(
     const type = file.type.startsWith("video/") ? "video-upload" : "image-upload";
     const nodeId = addNode(type, uploadPosRef.current.x, uploadPosRef.current.y, "");
     const path = await saveAsset(nodeId, file);
-    const url = path.startsWith("blob:") ? path : await loadAssetUrl(path);
+    const url = path.startsWith("blob:") ? path : await getAssetSrc(path);
     setNodes((prev) => prev.map((n) => n.id === nodeId ? {
       ...n, data: { ...n.data, fileUrl: url, assetPath: path }
     } : n));

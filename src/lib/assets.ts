@@ -1,4 +1,4 @@
-import { isTauri as checkTauri } from "@tauri-apps/api/core";
+import { isTauri as checkTauri, convertFileSrc } from "@tauri-apps/api/core";
 
 const ASSET_DIR = "editor-tarui/assets";
 
@@ -73,6 +73,12 @@ export async function resolveAssetPath(relativePath: string): Promise<string> {
   const baseDir = await ensureAssetDir();
   if (!baseDir) return "";
   return `${baseDir}/${relativePath}`;
+}
+
+export async function getAssetSrc(relativePath: string): Promise<string> {
+  const fullPath = await resolveAssetPath(relativePath);
+  if (!fullPath) return "";
+  return convertFileSrc(fullPath);
 }
 
 export async function deleteAssetDir(nodeId: string): Promise<void> {

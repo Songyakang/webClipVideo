@@ -49,15 +49,15 @@ export default function InpaintModal({
   // Load frame via hidden video element + canvas capture
   const loadFrame = useCallback(async () => {
     try {
-      const { loadAssetUrl } = await import("../../../lib/assets");
-      const blobUrl = await loadAssetUrl(videoAssetPath);
-      if (!blobUrl) {
+      const { getAssetSrc } = await import("../../../lib/assets");
+      const src = await getAssetSrc(videoAssetPath);
+      if (!src) {
         console.error("Failed to resolve asset URL");
         return;
       }
 
       const video = document.createElement("video");
-      video.src = blobUrl;
+      video.src = src;
       video.crossOrigin = "anonymous";
       video.preload = "metadata";
 
@@ -74,13 +74,9 @@ export default function InpaintModal({
           const dataUrl = canvas.toDataURL("image/png");
           setFrameUrl(dataUrl);
           setFrameNaturalSize({ w: video.videoWidth, h: video.videoHeight });
-          URL.revokeObjectURL(blobUrl);
           resolve();
         };
-        video.onerror = () => {
-          URL.revokeObjectURL(blobUrl);
-          reject(new Error("Failed to load video"));
-        };
+        video.onerror = () => reject(new Error("Failed to load video"));
       });
     } catch (err) {
       console.error("Failed to load frame:", err);

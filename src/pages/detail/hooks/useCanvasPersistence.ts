@@ -1,7 +1,7 @@
 import { useEffect, type MutableRefObject } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { saveCanvas, loadCanvas } from "../../../lib/db";
-import { loadAssetUrl } from "../../../lib/assets";
+import { getAssetSrc } from "../../../lib/assets";
 
 export function useCanvasPersistence(
   nodes: Node[],
@@ -20,7 +20,7 @@ export function useCanvasPersistence(
         const assetPath: string = n.data?.assetPath || "";
         // Blob URLs expire after session ends, always regenerate from assetPath
         if (assetPath && n.type?.includes("upload")) {
-          const assetUrl = await loadAssetUrl(assetPath);
+          const assetUrl = await getAssetSrc(assetPath);
           return { ...n, data: { ...n.data, fileUrl: assetUrl || n.data.fileUrl } };
         }
         return n;
