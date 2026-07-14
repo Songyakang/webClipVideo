@@ -22,9 +22,14 @@ export function useCanvasPersistence(
       const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
         const assetPath: string = n.data?.assetPath || "";
         if (assetPath && n.type?.includes("upload")) {
-          const assetUrl = await getAssetSrc(assetPath);
-          console.log("[restore]", n.type, assetPath, "→", assetUrl);
-          return { ...n, data: { ...n.data, fileUrl: assetUrl || n.data.fileUrl } };
+          try {
+            const assetUrl = await getAssetSrc(assetPath);
+            if (assetUrl) {
+              return { ...n, data: { ...n.data, fileUrl: assetUrl } };
+            }
+          } catch (err) {
+            console.error("[restore] getAssetSrc failed:", assetPath, err);
+          }
         }
         return n;
       }));
