@@ -71,7 +71,10 @@ pub async fn remove_hard_subtitles(
         output_path
     };
 
-    let frames_dir = std::env::temp_dir().join(format!("inpaint_frames_{}_{}", project_id, stem));
+    let frames_dir = std::env::temp_dir()
+        .join("inpaint_frames")
+        .join(&project_id)
+        .join(stem.as_ref());
     let _ = std::fs::create_dir_all(&frames_dir);
 
     let script_path = resolve_script_path()?;
