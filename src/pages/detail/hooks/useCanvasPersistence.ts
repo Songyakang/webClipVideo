@@ -4,6 +4,7 @@ import { saveCanvas, loadCanvas } from "../../../lib/db";
 import { getAssetSrc } from "../../../lib/assets";
 
 export function useCanvasPersistence(
+  clipId: string,
   nodes: Node[],
   edges: Edge[],
   setNodes: (nodes: any) => void,
@@ -12,13 +13,11 @@ export function useCanvasPersistence(
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
-  // Load from IndexedDB on mount
   useEffect(() => {
-    loadCanvas().then(async (data) => {
+    loadCanvas(clipId).then(async (data) => {
       if (loadedRef.current) return;
       const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
         const assetPath: string = n.data?.assetPath || "";
-        // Blob URLs expire after session ends, always regenerate from assetPath
         if (assetPath && n.type?.includes("upload")) {
           const assetUrl = await getAssetSrc(assetPath);
           return { ...n, data: { ...n.data, fileUrl: assetUrl || n.data.fileUrl } };
@@ -39,14 +38,13 @@ export function useCanvasPersistence(
       }
       loadedRef.current = true;
     });
-  }, [setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef]);
+  }, [clipId, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef]);
 
-  // Save to IndexedDB with 500ms debounce
   useEffect(() => {
     if (!loadedRef.current) return;
     const timer = setTimeout(() => {
-      saveCanvas(nodes as any, edges as any);
+      saveCanvas(clipId, nodes as any, edges as any);
     }, 500);
     return () => clearTimeout(timer);
-  }, [nodes, edges, loadedRef]);
+  }, [clipId, nodes, edges, loadedRef]);
 }

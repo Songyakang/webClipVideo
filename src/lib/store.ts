@@ -31,7 +31,7 @@ export async function deleteClip(id: string): Promise<boolean> {
   if (!ok) return false;
 
   // Cascade cleanup (non-blocking): canvas + subtitles + asset files
-  dbClearCanvas().catch((e) => console.error("clearCanvas failed:", e));
+  dbClearCanvas(id).catch((e) => console.error("clearCanvas failed:", e));
   deleteProjectAssets(id).catch((e) => console.error("deleteProjectAssets failed:", e));
 
   return true;

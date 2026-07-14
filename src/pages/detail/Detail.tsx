@@ -87,7 +87,7 @@ export default function Detail() {
     deleteNode, removeEdge,
   });
 
-  useCanvasPersistence(nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
+  useCanvasPersistence(id!, nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;

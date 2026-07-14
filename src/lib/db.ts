@@ -2,7 +2,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type { SubtitleTrack } from "./types";
 
 const DB_NAME = "video-clip-editor";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_NODES = "nodes";
 const STORE_EDGES = "edges";
 const STORE_CLIPS = "clips";
@@ -43,19 +43,6 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-function storePut(db: IDBDatabase, name: string, items: { id: string; [key: string]: any }[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(name, "readwrite");
-    const store = tx.objectStore(name);
-    store.clear();
-    for (const item of items) {
-      store.put(item);
-    }
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
 function storeGetAll(db: IDBDatabase, name: string): Promise<any[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(name, "readonly");
@@ -66,66 +53,79 @@ function storeGetAll(db: IDBDatabase, name: string): Promise<any[]> {
   });
 }
 
+// -- Canvas (per-clip isolation via clipId field) --
+
 export async function saveCanvas(
+  clipId: string,
   nodes: Node[],
   edges: Edge[],
 ) {
   const db = await openDB();
 
-  // Save nodes (strip non-serializable data like videoEl DOM refs)
+  // Load all records, keep those belonging to OTHER clips
+  const allNodes = await storeGetAll(db, STORE_NODES);
+  const allEdges = await storeGetAll(db, STORE_EDGES);
+
+  const otherNodes = allNodes.filter((n: any) => n.clipId && n.clipId !== clipId);
+  const otherEdges = allEdges.filter((e: any) => e.clipId && e.clipId !== clipId);
+
+  // Tag new records with clipId, strip DOM refs
   const cleanNodes = nodes.map((n) => {
     const { videoEl, ...cleanData } = n.data || {};
     return {
-      id: n.id,
-      type: n.type,
-      position: n.position,
-      data: cleanData,
-      width: n.width,
-      height: n.height,
-      selected: n.selected,
+      id: n.id, type: n.type, position: n.position,
+      data: cleanData, width: n.width, height: n.height,
+      selected: n.selected, clipId,
     };
   });
-  await storePut(db, STORE_NODES, cleanNodes);
-
-  // Save edges
   const cleanEdges = edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle,
-    targetHandle: e.targetHandle,
+    id: e.id, source: e.source, target: e.target,
+    sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+    clipId,
   }));
-  await storePut(db, STORE_EDGES, cleanEdges);
 
+  // Replace this clip's records, preserve others
+  const tx = db.transaction([STORE_NODES, STORE_EDGES], "readwrite");
+  const nodeStore = tx.objectStore(STORE_NODES);
+  const edgeStore = tx.objectStore(STORE_EDGES);
+
+  // Clear stores, then re-insert other clips' + this clip's records
+  nodeStore.clear();
+  edgeStore.clear();
+  for (const n of [...otherNodes, ...cleanNodes]) nodeStore.put(n);
+  for (const e of [...otherEdges, ...cleanEdges]) edgeStore.put(e);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
   db.close();
 }
 
-export async function loadCanvas(): Promise<{
+export async function loadCanvas(clipId: string): Promise<{
   nodes: Node[];
   edges: Edge[];
 }> {
   const db = await openDB();
   const rawNodes = await storeGetAll(db, STORE_NODES);
   const rawEdges = await storeGetAll(db, STORE_EDGES);
-
   db.close();
 
-  // Restore nodes with proper defaults
-  const nodes = rawNodes.map((n: any) => ({
+  const clipNodes = rawNodes.filter((n: any) => n.clipId === clipId);
+  const clipEdges = rawEdges.filter((e: any) => e.clipId === clipId);
+
+  const nodes = clipNodes.map((n: any) => ({
     id: n.id,
     type: n.type || "text",
     position: n.position || { x: 0, y: 0 },
-    data: {
-      ...n.data,
-      fileUrl: n.data?.fileUrl || "",
-    },
+    data: { ...n.data, fileUrl: n.data?.fileUrl || "" },
     width: n.width,
     height: n.height,
     selected: false,
     dragging: false,
   }));
 
-  const edges = rawEdges.map((e: any) => ({
+  const edges = clipEdges.map((e: any) => ({
     id: e.id,
     source: e.source,
     target: e.target,
@@ -136,11 +136,33 @@ export async function loadCanvas(): Promise<{
   return { nodes, edges };
 }
 
-export async function clearCanvas() {
+export async function clearCanvas(clipId: string) {
   const db = await openDB();
-  await storePut(db, STORE_NODES, []);
-  await storePut(db, STORE_EDGES, []);
-  await storePut(db, STORE_SUBTITLES, []);
+
+  const allNodes = await storeGetAll(db, STORE_NODES);
+  const allEdges = await storeGetAll(db, STORE_EDGES);
+  const allSubtitles = await storeGetAll(db, STORE_SUBTITLES);
+
+  const keepNodes = allNodes.filter((n: any) => n.clipId !== clipId);
+  const keepEdges = allEdges.filter((e: any) => e.clipId !== clipId);
+  const keepSubtitles = allSubtitles.filter((s: any) => s.clipId !== clipId);
+
+  const tx = db.transaction([STORE_NODES, STORE_EDGES, STORE_SUBTITLES], "readwrite");
+  const nodeStore = tx.objectStore(STORE_NODES);
+  const edgeStore = tx.objectStore(STORE_EDGES);
+  const subStore = tx.objectStore(STORE_SUBTITLES);
+
+  nodeStore.clear();
+  edgeStore.clear();
+  subStore.clear();
+  for (const n of keepNodes) nodeStore.put(n);
+  for (const e of keepEdges) edgeStore.put(e);
+  for (const s of keepSubtitles) subStore.put(s);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
   db.close();
 }
 
@@ -253,14 +275,4 @@ export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack |
   });
   db.close();
   return track || null;
-}
-
-export async function deleteSubtitleTrack(nodeId: string): Promise<void> {
-  const db = await openDB();
-  await new Promise<void>((resolve, reject) => {
-    const req = db.transaction(STORE_SUBTITLES, "readwrite").objectStore(STORE_SUBTITLES).delete(nodeId);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-  db.close();
 }
