@@ -23,6 +23,7 @@ export function useCanvasPersistence(
         const assetPath: string = n.data?.assetPath || "";
         if (assetPath && n.type?.includes("upload")) {
           const assetUrl = await getAssetSrc(assetPath);
+          console.log("[restore]", n.type, assetPath, "→", assetUrl);
           return { ...n, data: { ...n.data, fileUrl: assetUrl || n.data.fileUrl } };
         }
         return n;
