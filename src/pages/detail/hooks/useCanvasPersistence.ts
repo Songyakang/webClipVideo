@@ -17,10 +17,11 @@ export function useCanvasPersistence(
     loadCanvas().then(async (data) => {
       if (loadedRef.current) return;
       const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
-        const fileUrl: string = n.data?.fileUrl || "";
-        if (fileUrl && !fileUrl.startsWith("blob:") && !fileUrl.startsWith("http")) {
-          const assetUrl = await loadAssetUrl(fileUrl);
-          return { ...n, data: { ...n.data, fileUrl: assetUrl || fileUrl } };
+        const assetPath: string = n.data?.assetPath || "";
+        // Blob URLs expire after session ends, always regenerate from assetPath
+        if (assetPath && n.data?.type?.includes("upload")) {
+          const assetUrl = await loadAssetUrl(assetPath);
+          return { ...n, data: { ...n.data, fileUrl: assetUrl || n.data.fileUrl } };
         }
         return n;
       }));
