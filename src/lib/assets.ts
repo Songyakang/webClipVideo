@@ -80,6 +80,17 @@ export async function getAssetSrc(relativePath: string): Promise<string> {
   return convertFileSrc(fullPath);
 }
 
+export async function deleteProjectAssets(projectId: string): Promise<void> {
+  if (!isTauri()) return;
+  const baseDir = await ensureAssetDir();
+  if (!baseDir) return;
+  const { remove, exists } = await import("@tauri-apps/plugin-fs");
+  const projectDir = `${baseDir}/${projectId}`;
+  if (await exists(projectDir)) {
+    await remove(projectDir, { recursive: true });
+  }
+}
+
 export async function deleteAssetDir(projectId: string, nodeId: string): Promise<void> {
   if (!isTauri()) return;
   const baseDir = await ensureAssetDir();

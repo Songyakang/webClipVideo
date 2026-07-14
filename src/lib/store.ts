@@ -1,4 +1,5 @@
 import type { VideoClip, SubtitleTrack } from "./types";
+import { deleteProjectAssets } from "./assets";
 import {
   getAllClips as dbGetAll,
   getClipById as dbGetById,
@@ -9,6 +10,7 @@ import {
   saveSubtitleTrack as dbSaveTrack,
   loadSubtitleTrack as dbLoadTrack,
   deleteSubtitleTrack as dbDeleteTrack,
+  clearCanvas as dbClearCanvas,
 } from "./db";
 
 export async function getAllClips(): Promise<VideoClip[]> {
@@ -26,7 +28,15 @@ export async function addClip(
 }
 
 export async function deleteClip(id: string): Promise<boolean> {
-  return dbDelete(id);
+  const ok = await dbDelete(id);
+  if (ok) {
+    // Clean up canvas, subtitles, and asset files
+    dbClearCanvas().catch((err) => console.error("Failed to clear canvas:", err));
+    deleteProjectAssets(id).catch((err) =>
+      console.error("Failed to clean up project assets:", err)
+    );
+  }
+  return ok;
 }
 
 export async function updateClip(

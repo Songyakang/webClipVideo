@@ -138,9 +138,9 @@ export async function loadCanvas(): Promise<{
 
 export async function clearCanvas() {
   const db = await openDB();
-  for (const name of [STORE_NODES, STORE_EDGES]) {
-    storePut(db, name, []);
-  }
+  await storePut(db, STORE_NODES, []);
+  await storePut(db, STORE_EDGES, []);
+  await storePut(db, STORE_SUBTITLES, []);
   db.close();
 }
 
