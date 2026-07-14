@@ -171,6 +171,7 @@ export default function InpaintModal({
       const fullPath = videoAssetPath.startsWith("/")
         ? videoAssetPath
         : await resolveAssetPath(videoAssetPath);
+      console.log("[inpaint] videoAssetPath:", videoAssetPath, "→ fullPath:", fullPath);
 
       const unlisten = await listen<{ frame: number; total: number; percent: number }>(
         "inpaint-progress",

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use serde::Serialize;
 use tauri::Emitter;
+use tauri::Manager;
 
 #[derive(Clone, Serialize)]
 pub struct InpaintProgress {
@@ -40,6 +41,21 @@ pub async fn remove_hard_subtitles(
     height: u32,
     strip_soft_subtitles: bool,
 ) -> Result<String, String> {
+    // Resolve relative paths against the assets directory
+    let video_path = if PathBuf::from(&video_path).is_absolute() {
+        video_path
+    } else {
+        let doc_dir = app
+            .path()
+            .document_dir()
+            .map_err(|e| format!("Cannot resolve document dir: {}", e))?;
+        doc_dir
+            .join("editor-tarui/assets")
+            .join(&video_path)
+            .to_string_lossy()
+            .to_string()
+    };
+
     let video = PathBuf::from(&video_path);
     let parent = video.parent().unwrap_or_else(|| std::path::Path::new("/tmp"));
     let stem = video.file_stem().unwrap_or_default().to_string_lossy();
