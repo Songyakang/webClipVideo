@@ -115,8 +115,9 @@ export async function loadCanvas(clipId: string): Promise<{
   const rawEdges = await storeGetAll(db, STORE_EDGES);
   db.close();
 
-  const clipNodes = rawNodes.filter((n: any) => n.clipId === clipId);
-  const clipEdges = rawEdges.filter((e: any) => e.clipId === clipId);
+  // Filter by clipId; also ignore legacy records that have no clipId field
+  const clipNodes = rawNodes.filter((n: any) => n.clipId && n.clipId === clipId);
+  const clipEdges = rawEdges.filter((e: any) => e.clipId && e.clipId === clipId);
 
   const nodes = clipNodes.map((n: any) => ({
     id: n.id,

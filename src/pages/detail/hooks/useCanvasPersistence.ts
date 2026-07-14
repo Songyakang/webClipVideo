@@ -45,10 +45,8 @@ export function useCanvasPersistence(
         if (match) edgeIdCounterRef.current = Math.max(edgeIdCounterRef.current, parseInt(match[1]));
       });
 
-      if (restoredNodes.length > 0) {
-        setNodes(restoredNodes as any);
-        setEdges(data.edges as any);
-      }
+      setNodes(restoredNodes as any);
+      setEdges(data.edges as any);
       loadedRef.current = true;
     });
 
