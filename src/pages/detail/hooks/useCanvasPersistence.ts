@@ -13,6 +13,11 @@ export function useCanvasPersistence(
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
+  // Reset load flag when clip changes
+  useEffect(() => {
+    loadedRef.current = false;
+  }, [clipId]);
+
   useEffect(() => {
     loadCanvas(clipId).then(async (data) => {
       if (loadedRef.current) return;
