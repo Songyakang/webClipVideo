@@ -72,16 +72,19 @@ export async function saveCanvas(
 ) {
   const db = await openDB();
 
-  // Save nodes (strip circular refs and non-serializable data)
-  const cleanNodes = nodes.map((n) => ({
-    id: n.id,
-    type: n.type,
-    position: n.position,
-    data: n.data,
-    width: n.width,
-    height: n.height,
-    selected: n.selected,
-  }));
+  // Save nodes (strip non-serializable data like videoEl DOM refs)
+  const cleanNodes = nodes.map((n) => {
+    const { videoEl, ...cleanData } = n.data || {};
+    return {
+      id: n.id,
+      type: n.type,
+      position: n.position,
+      data: cleanData,
+      width: n.width,
+      height: n.height,
+      selected: n.selected,
+    };
+  });
   await storePut(db, STORE_NODES, cleanNodes);
 
   // Save edges
