@@ -13,14 +13,12 @@ export function useCanvasPersistence(
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
-  // Reset load flag when clip changes
   useEffect(() => {
-    loadedRef.current = false;
-  }, [clipId]);
+    let cancelled = false;
 
-  useEffect(() => {
     loadCanvas(clipId).then(async (data) => {
-      if (loadedRef.current) return;
+      if (cancelled) return;
+
       const restoredNodes = await Promise.all(data.nodes.map(async (n: any) => {
         const assetPath: string = n.data?.assetPath || "";
         if (assetPath && n.type?.includes("upload")) {
@@ -29,6 +27,9 @@ export function useCanvasPersistence(
         }
         return n;
       }));
+
+      if (cancelled) return;
+
       restoredNodes.forEach((n: any) => {
         const match = n.id.match(/^node-(\d+)$/);
         if (match) nodeIdCounterRef.current = Math.max(nodeIdCounterRef.current, parseInt(match[1]));
@@ -37,13 +38,16 @@ export function useCanvasPersistence(
         const match = e.id.match(/^edge-(\d+)$/);
         if (match) edgeIdCounterRef.current = Math.max(edgeIdCounterRef.current, parseInt(match[1]));
       });
+
       if (restoredNodes.length > 0) {
         setNodes(restoredNodes as any);
         setEdges(data.edges as any);
       }
       loadedRef.current = true;
     });
-  }, [clipId, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef]);
+
+    return () => { cancelled = true; };
+  }, [clipId, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef]);
 
   useEffect(() => {
     if (!loadedRef.current) return;
@@ -51,5 +55,5 @@ export function useCanvasPersistence(
       saveCanvas(clipId, nodes as any, edges as any);
     }, 500);
     return () => clearTimeout(timer);
-  }, [clipId, nodes, edges, loadedRef]);
+  }, [clipId, nodes, edges]);
 }
