@@ -60,6 +60,8 @@ export async function saveCanvas(
   nodes: Node[],
   edges: Edge[],
 ) {
+  if (!clipId) return;
+
   const db = await openDB();
 
   // Load all records, keep those belonging to OTHER clips
@@ -106,6 +108,8 @@ export async function loadCanvas(clipId: string): Promise<{
   nodes: Node[];
   edges: Edge[];
 }> {
+  if (!clipId) return { nodes: [], edges: [] };
+
   const db = await openDB();
   const rawNodes = await storeGetAll(db, STORE_NODES);
   const rawEdges = await storeGetAll(db, STORE_EDGES);
