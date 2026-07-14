@@ -145,10 +145,9 @@ export default function InpaintModal({
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const { resolveAssetPath } = await import("../../../lib/assets");
-      const appDataDir = await resolveAssetPath("");
       const fullPath = videoAssetPath.startsWith("/")
         ? videoAssetPath
-        : `${appDataDir}${videoAssetPath}`;
+        : await resolveAssetPath(videoAssetPath);
       const timeSec = parseFloat(timeInput) || 0;
       const resultPath = await invoke<string>("preview_inpaint_frame", {
         videoPath: fullPath,
@@ -173,10 +172,9 @@ export default function InpaintModal({
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
       const { resolveAssetPath } = await import("../../../lib/assets");
-      const appDataDir = await resolveAssetPath("");
       const fullPath = videoAssetPath.startsWith("/")
         ? videoAssetPath
-        : `${appDataDir}${videoAssetPath}`;
+        : await resolveAssetPath(videoAssetPath);
 
       const unlisten = await listen<{ frame: number; total: number; percent: number }>(
         "inpaint-progress",
@@ -212,10 +210,9 @@ export default function InpaintModal({
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const { resolveAssetPath } = await import("../../../lib/assets");
-      const appDataDir = await resolveAssetPath("");
       const fullPath = videoAssetPath.startsWith("/")
         ? videoAssetPath
-        : `${appDataDir}${videoAssetPath}`;
+        : await resolveAssetPath(videoAssetPath);
 
       const result = await invoke<string>("strip_soft_subtitles", {
         videoPath: fullPath,
