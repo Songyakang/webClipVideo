@@ -2,6 +2,7 @@ mod commands;
 
 use commands::asr::generate_subtitles;
 use commands::export::{export_with_subtitles, burn_with_synthetic_audio};
+use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inpaint_frame};
 use commands::voice::{extract_voice_profile, synthesize_speech};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,6 +16,9 @@ pub fn run() {
             burn_with_synthetic_audio,
             extract_voice_profile,
             synthesize_speech,
+            remove_hard_subtitles,
+            strip_soft_subtitles,
+            preview_inpaint_frame,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

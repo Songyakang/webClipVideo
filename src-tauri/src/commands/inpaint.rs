@@ -1,0 +1,188 @@
+use std::io::BufRead;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use serde::Serialize;
+use tauri::Emitter;
+
+#[derive(Clone, Serialize)]
+pub struct InpaintProgress {
+    pub frame: i32,
+    pub total: i32,
+    pub percent: f64,
+}
+
+#[tauri::command]
+pub async fn remove_hard_subtitles(
+    app: tauri::AppHandle,
+    video_path: String,
+    output_path: String,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    strip_soft_subtitles: bool,
+) -> Result<String, String> {
+    let video = PathBuf::from(&video_path);
+    let parent = video.parent().unwrap_or_else(|| std::path::Path::new("/tmp"));
+    let stem = video.file_stem().unwrap_or_default().to_string_lossy();
+    let ext = video.extension().unwrap_or_default().to_string_lossy();
+
+    let out = if output_path.is_empty() {
+        parent
+            .join(format!("{}_clean.{}", stem, ext))
+            .to_string_lossy()
+            .to_string()
+    } else {
+        output_path
+    };
+
+    // Resolve script path relative to the project
+    let script_path = std::env::current_dir()
+        .unwrap_or_default()
+        .join("scripts")
+        .join("inpaint_cli.py");
+
+    let mut child = Command::new("python3")
+        .args([
+            script_path.to_str().unwrap_or("scripts/inpaint_cli.py"),
+            "process",
+            &video_path,
+            &out,
+            "--x", &x.to_string(),
+            "--y", &y.to_string(),
+            "--w", &width.to_string(),
+            "--h", &height.to_string(),
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start inpainting process: {}", e))?;
+
+    let stdout = child.stdout.take().ok_or("No stdout")?;
+    let reader = std::io::BufReader::new(stdout);
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("Read error: {}", e))?;
+        if let Ok(progress) = serde_json::from_str::<serde_json::Value>(&line) {
+            if progress.get("error").is_some() {
+                let _ = child.kill();
+                return Err(progress["error"].as_str().unwrap_or("unknown error").to_string());
+            }
+            if progress.get("status").is_some() {
+                break; // done
+            }
+            let payload = InpaintProgress {
+                frame: progress["frame"].as_i64().unwrap_or(0) as i32,
+                total: progress["total"].as_i64().unwrap_or(1) as i32,
+                percent: progress["percent"].as_f64().unwrap_or(0.0),
+            };
+            let _ = app.emit("inpaint-progress", payload);
+        }
+    }
+
+    let status = child.wait().map_err(|e| format!("Process error: {}", e))?;
+    if !status.success() {
+        return Err("Inpainting process failed".into());
+    }
+
+    // Optionally strip soft subtitles
+    let final_out = if strip_soft_subtitles {
+        let stripped = parent
+            .join(format!("{}_clean_nosub.{}", stem, ext))
+            .to_string_lossy()
+            .to_string();
+        strip_soft_subtitles_inner(&out, &stripped)?;
+        let _ = std::fs::remove_file(&out);
+        stripped
+    } else {
+        out
+    };
+
+    Ok(final_out)
+}
+
+fn strip_soft_subtitles_inner(input: &str, output: &str) -> Result<(), String> {
+    let status = Command::new("ffmpeg")
+        .args(["-y", "-i", input, "-sn", "-c", "copy", output])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
+
+    if !status.success() {
+        return Err("FFmpeg soft subtitle stripping failed".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn strip_soft_subtitles(video_path: String) -> Result<String, String> {
+    let video = PathBuf::from(&video_path);
+    let stem = video.file_stem().unwrap_or_default().to_string_lossy();
+    let ext = video.extension().unwrap_or_default().to_string_lossy();
+    let parent = video.parent().unwrap_or_else(|| std::path::Path::new("/tmp"));
+    let out = parent
+        .join(format!("{}_nosub.{}", stem, ext))
+        .to_string_lossy()
+        .to_string();
+
+    strip_soft_subtitles_inner(&video_path, &out)?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn preview_inpaint_frame(
+    video_path: String,
+    time_sec: f64,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> Result<String, String> {
+    let tmp_dir = std::env::temp_dir();
+    let frame_path = tmp_dir.join("inpaint_preview_original.png");
+    let result_path = tmp_dir.join("inpaint_preview_clean.png");
+
+    // Extract a single frame at the specified time
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-ss", &time_sec.to_string(),
+            "-i", &video_path,
+            "-vframes", "1",
+            frame_path.to_str().unwrap_or("/tmp/inpaint_frame.png"),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| format!("Failed to extract frame: {}", e))?;
+
+    if !status.success() {
+        return Err("Failed to extract frame from video".into());
+    }
+
+    let script_path = std::env::current_dir()
+        .unwrap_or_default()
+        .join("scripts")
+        .join("inpaint_cli.py");
+
+    let output = Command::new("python3")
+        .args([
+            script_path.to_str().unwrap_or("scripts/inpaint_cli.py"),
+            "preview",
+            frame_path.to_str().unwrap_or(""),
+            result_path.to_str().unwrap_or(""),
+            "--x", &x.to_string(),
+            "--y", &y.to_string(),
+            "--w", &width.to_string(),
+            "--h", &height.to_string(),
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run preview: {}", e))?;
+
+    if !output.status.success() {
+        return Err("Preview inpainting failed".into());
+    }
+
+    Ok(result_path.to_string_lossy().to_string())
+}
