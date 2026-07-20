@@ -31,6 +31,8 @@ import type { Generate3DResult, SceneModel } from "../../lib/types";
 import SubtitlePanel from "./subtitle/SubtitlePanel";
 import TitleEditor from "./TitleEditor";
 import EditOverlay from "./EditOverlay";
+import DirectorView from "./director/DirectorView";
+import type { DirectorNodeData } from "../../lib/types";
 import "./Detail.css";
 import "./nodes/nodes.css";
 
@@ -53,6 +55,7 @@ export default function Detail() {
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -206,7 +209,11 @@ export default function Detail() {
   }, [menu, addNode, deleteNode, duplicateNode, screenToFlow]);
 
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
-    setEditingNodeId(node.id);
+    if (node.type === "director") {
+      setDirectorNodeId(node.id);
+    } else {
+      setEditingNodeId(node.id);
+    }
   }, []);
 
   const commitEdit = useCallback((text: string) => {
@@ -319,6 +326,28 @@ export default function Detail() {
           </svg>
         </div>
       )}
+
+      {/* Director View Overlay */}
+      {directorNodeId && (() => {
+        const dirNode = nodes.find((n) => n.id === directorNodeId);
+        if (!dirNode) return null;
+        return (
+          <DirectorView
+            data={dirNode.data as unknown as DirectorNodeData}
+            projectId={id!}
+            onClose={() => setDirectorNodeId(null)}
+            onUpdate={(newData) => {
+              setNodes((prev) =>
+                prev.map((n) =>
+                  n.id === directorNodeId
+                    ? { ...n, data: newData as any }
+                    : n
+                ) as FlowNode[]
+              );
+            }}
+          />
+        );
+      })()}
 
       {menu && <ContextMenus menu={menu} onAction={handleMenuAction} />}
 

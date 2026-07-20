@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@orillusion/core':
+        specifier: ^0.9.1
+        version: 0.9.1
       '@radix-ui/react-select':
         specifier: ^2.3.3
         version: 2.3.3(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -412,6 +415,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@orillusion/core@0.9.1':
+    resolution: {integrity: sha512-aJ/FhaPGvmBDN9XNUTHih0t9mPU+kxXISaWv3h8aJ20236tlTbERz1hO7U3+B4M/ijxjn05+gmqUGOjF0/RR1g==}
 
   '@radix-ui/number@1.1.2':
     resolution: {integrity: sha512-ceTwaxc4I5IOi97DgCotl3pqiyRGvffcc0oOsE2dQYaJOFIDsDt4VWG6xEbg1QePv9QWausCEIppud/tJ1wNig==}
@@ -1929,6 +1935,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@orillusion/core@0.9.1': {}
 
   '@radix-ui/number@1.1.2': {}
 

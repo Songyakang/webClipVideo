@@ -1,0 +1,117 @@
+.kf-timeline {
+  display: flex;
+  height: 120px;
+  background: #0d0d1a;
+  border-top: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.kf-track-list {
+  width: 120px;
+  border-right: 1px solid #2a2a4a;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kf-track-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+}
+
+.kf-track-label.active {
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+.kf-track-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kf-timeline-area {
+  flex: 1;
+  position: relative;
+  cursor: pointer;
+}
+
+.kf-ruler {
+  height: 20px;
+  border-bottom: 1px solid #2a2a4a;
+  position: relative;
+}
+
+.kf-ruler-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.kf-ruler-label {
+  font-size: 9px;
+  color: #555;
+}
+
+.kf-track-row {
+  height: 28px;
+  border-bottom: 1px solid #1a1a2e;
+  position: relative;
+}
+
+.kf-keyframe-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid #fff;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.kf-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.kf-controls {
+  width: 120px;
+  border-left: 1px solid #2a2a4a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+}
+
+.kf-ctrl-btn {
+  padding: 4px 10px;
+  background: #1a1a2e;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.kf-time-display {
+  font-size: 11px;
+  color: #a78bfa;
+  font-family: monospace;
+}
