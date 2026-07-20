@@ -163,9 +163,14 @@ export default function Detail() {
         ]);
 
         // 调用后端 API
-        resolveAssetPath(imagePath).then((imageAbsPath) => {
-          invoke("generate_3d", { imagePath: imageAbsPath, projectId: id! })
-            .then((result) => {
+        resolveAssetPath(imagePath)
+          .then((imageAbsPath) => {
+            if (!imageAbsPath) {
+              console.error("resolveAssetPath returned empty for:", imagePath);
+              return;
+            }
+            invoke("generate_3d", { imagePath: imageAbsPath, projectId: id! })
+              .then((result) => {
               const generateResult = result as Generate3DResult;
               setNodes((prev) =>
                 prev.map((n) => {
@@ -197,6 +202,18 @@ export default function Detail() {
                 })
               );
             });
+        })
+        .catch((err) => {
+          console.error("resolveAssetPath failed:", err);
+          setNodes((prev) =>
+            prev.map((n) => {
+              if (n.id !== directorId) return n;
+              const models = (n.data as any).models.map((m: any) =>
+                m.id === modelId ? { ...m, status: "error" as const } : m
+              );
+              return { ...n, data: { ...n.data, models } };
+            })
+          );
         });
         break;
       }
