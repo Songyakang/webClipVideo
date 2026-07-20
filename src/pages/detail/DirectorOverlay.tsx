@@ -1,5 +1,4 @@
-import type { FlowNode, NodeData } from "./nodes/types";
-import type { DirectorNodeData } from "../../lib/types";
+import { isDirectorData, type FlowNode } from "./nodes/types";
 import DirectorView from "./director/DirectorView";
 
 interface Props {
@@ -12,20 +11,18 @@ interface Props {
 
 export default function DirectorOverlay({ directorNodeId, nodes, projectId, setNodes, onClose }: Props) {
   const dirNode = nodes.find((n) => n.id === directorNodeId);
-  if (!dirNode) return null;
+  if (!dirNode || !isDirectorData(dirNode.data)) return null;
 
   return (
     <DirectorView
-      data={dirNode.data as unknown as DirectorNodeData}
+      data={dirNode.data}
       projectId={projectId}
       onClose={onClose}
       onUpdate={(newData) => {
         setNodes((prev) =>
           prev.map((n) =>
-            n.id === directorNodeId
-              ? { ...n, data: newData as unknown as NodeData }
-              : n
-          ) as FlowNode[]
+            n.id === directorNodeId ? { ...n, data: { ...n.data, ...newData } } : n,
+          ),
         );
       }}
     />

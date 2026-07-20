@@ -2,18 +2,22 @@ import { useCallback } from "react";
 import type { FlowNode } from "../nodes/types";
 import type { MenuState } from "./useContextMenu";
 
-export function useMenuActions(
-  menu: MenuState | null,
-  setMenu: (menu: MenuState | null) => void,
-  nodes: FlowNode[],
-  addNode: (type: string, x: number, y: number, fileUrl?: string) => string,
-  deleteNode: (nodeId: string) => void,
-  duplicateNode: (nodeId: string) => void,
-  screenToFlow: (sx: number, sy: number) => { x: number; y: number },
-  generate3DFromImage: (imageNode: FlowNode) => void,
-  uploadPosRef: React.MutableRefObject<{ x: number; y: number }>,
-  fileInputRef: React.RefObject<HTMLInputElement | null>,
-) {
+interface MenuActionDeps {
+  menu: MenuState | null;
+  setMenu: (m: MenuState | null) => void;
+  nodes: FlowNode[];
+  addNode: (type: string, x: number, y: number, fileUrl?: string) => string;
+  deleteNode: (nodeId: string) => void;
+  duplicateNode: (nodeId: string) => void;
+  screenToFlow: (sx: number, sy: number) => { x: number; y: number };
+  generate3DFromImage: (imageNode: FlowNode) => void;
+  uploadPosRef: React.MutableRefObject<{ x: number; y: number }>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+}
+
+export function useMenuActions(deps: MenuActionDeps) {
+  const { menu, setMenu, nodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef } = deps;
+
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
     switch (action) {
@@ -28,8 +32,8 @@ export function useMenuActions(
       case "转为3D模型": {
         if (!menu?.nodeId) break;
         const node = nodes.find((n) => n.id === menu.nodeId);
-        if (!node || (node.data?.type !== "image" && node.data?.type !== "image-upload")) break;
-        if (!node.data?.assetPath) break;
+        if (!node || (node.data.type !== "image" && node.data.type !== "image-upload")) break;
+        if (!node.data.assetPath) break;
         setMenu(null);
         generate3DFromImage(node);
         break;
@@ -54,12 +58,7 @@ export function useMenuActions(
       default:
         setMenu(null);
     }
-  }, [
-    menu, setMenu, nodes,
-    addNode, deleteNode, duplicateNode,
-    screenToFlow, generate3DFromImage,
-    uploadPosRef, fileInputRef,
-  ]);
+  }, [menu, setMenu, nodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef]);
 
   return { handleMenuAction };
 }

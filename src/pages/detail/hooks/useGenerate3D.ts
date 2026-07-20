@@ -3,8 +3,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { resolveAssetPath } from "../../../lib/assets";
 import { showToast } from "../../../lib/toast";
 import type { Edge } from "@xyflow/react";
-import type { FlowNode, NodeData } from "../nodes/types";
-import type { DirectorNodeData, Generate3DResult, SceneModel } from "../../../lib/types";
+import type { FlowNode } from "../nodes/types";
+import type { Generate3DResult, SceneModel } from "../../../lib/types";
+
+function updateDirectorModels(
+  prev: FlowNode[],
+  directorId: string,
+  modelId: string,
+  updater: (m: SceneModel) => SceneModel,
+): FlowNode[] {
+  return prev.map((n) => {
+    if (n.id !== directorId || !n.data.models) return n;
+    return {
+      ...n,
+      data: { ...n.data, models: n.data.models.map((m) => (m.id === modelId ? updater(m) : m)) },
+    };
+  });
+}
 
 export function useGenerate3D(
   projectId: string,
@@ -13,13 +28,13 @@ export function useGenerate3D(
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
-  const generate3DFromImage = useCallback((imageNode: FlowNode) => {
-    const imageData = imageNode.data as NodeData;
-    const imagePath = imageData.assetPath;
+  const generate3DFromImage = useCallback(async (imageNode: FlowNode) => {
+    const imagePath = imageNode.data.assetPath;
     if (!imagePath) return;
 
     const modelId = `model-${Date.now()}`;
     const directorId = `node-${++nodeIdCounterRef.current}`;
+
     const directorNode: FlowNode = {
       id: directorId,
       type: "director",
@@ -31,7 +46,7 @@ export function useGenerate3D(
         sourceImageNodeIds: [imageNode.id],
         models: [{
           id: modelId,
-          name: imageData.content || "未命名",
+          name: imageNode.data.content || "未命名",
           modelPath: "",
           thumbnailPath: "",
           transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
@@ -57,66 +72,42 @@ export function useGenerate3D(
     };
 
     setNodes((prev) => [...prev, directorNode]);
+    setEdges((prev) => [...prev, { id: `edge-${++edgeIdCounterRef.current}`, source: imageNode.id, target: directorId }]);
 
-    setEdges((prev) => [
-      ...prev,
-      { id: `edge-${++edgeIdCounterRef.current}`, source: imageNode.id, target: directorId },
-    ]);
-
-    resolveAssetPath(imagePath)
-      .then((imageAbsPath) => {
-        if (!imageAbsPath) {
-          console.error("resolveAssetPath returned empty for:", imagePath);
-          showToast("文件读取失败，请检查文件是否存在", "error");
-          return;
-        }
-        invoke<Generate3DResult>("generate_3d", { imagePath: imageAbsPath, projectId })
-          .then((generateResult) => {
-            setNodes((prev) =>
-              prev.map((n) => {
-                if (n.id !== directorId) return n;
-                const models: SceneModel[] = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
-                  m.id === modelId
-                    ? {
-                        ...m,
-                        modelPath: generateResult.modelPath,
-                        thumbnailPath: generateResult.thumbnailPath,
-                        meta: { ...m.meta, vertexCount: generateResult.vertexCount, faceCount: generateResult.faceCount },
-                        status: "ready" as const,
-                      }
-                    : m
-                );
-                return { ...n, data: { ...n.data, models } } as FlowNode;
-              })
-            );
-          })
-          .catch((err) => {
-            console.error("generate_3d failed:", err);
-            showToast("3D 模型生成失败，请稍后重试", "error");
-            setNodes((prev) =>
-              prev.map((n) => {
-                if (n.id !== directorId) return n;
-                const models: SceneModel[] = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
-                  m.id === modelId ? { ...m, status: "error" as const } : m
-                );
-                return { ...n, data: { ...n.data, models } } as FlowNode;
-              })
-            );
-          });
-      })
-      .catch((err) => {
-        console.error("resolveAssetPath failed:", err);
+    // Resolve asset path
+    let imageAbsPath: string;
+    try {
+      const resolved = await resolveAssetPath(imagePath);
+      if (!resolved) {
         showToast("文件读取失败，请检查文件是否存在", "error");
-        setNodes((prev) =>
-          prev.map((n) => {
-            if (n.id !== directorId) return n;
-            const models = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
-              m.id === modelId ? { ...m, status: "error" as const } : m
-            );
-            return { ...n, data: { ...n.data, models } } as FlowNode;
-          })
-        );
-      });
+        setNodes((prev) => updateDirectorModels(prev, directorId, modelId, (m) => ({ ...m, status: "error" })));
+        return;
+      }
+      imageAbsPath = resolved;
+    } catch (err) {
+      console.error("resolveAssetPath failed:", err);
+      showToast("文件读取失败，请检查文件是否存在", "error");
+      setNodes((prev) => updateDirectorModels(prev, directorId, modelId, (m) => ({ ...m, status: "error" })));
+      return;
+    }
+
+    // Generate 3D
+    try {
+      const result = await invoke<Generate3DResult>("generate_3d", { imagePath: imageAbsPath, projectId });
+      setNodes((prev) =>
+        updateDirectorModels(prev, directorId, modelId, (m) => ({
+          ...m,
+          modelPath: result.modelPath,
+          thumbnailPath: result.thumbnailPath,
+          meta: { ...m.meta, vertexCount: result.vertexCount, faceCount: result.faceCount },
+          status: "ready",
+        })),
+      );
+    } catch (err) {
+      console.error("generate_3d failed:", err);
+      showToast("3D 模型生成失败，请稍后重试", "error");
+      setNodes((prev) => updateDirectorModels(prev, directorId, modelId, (m) => ({ ...m, status: "error" })));
+    }
   }, [projectId, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef]);
 
   return { generate3DFromImage };

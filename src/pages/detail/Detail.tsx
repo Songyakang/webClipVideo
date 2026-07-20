@@ -92,12 +92,12 @@ export default function Detail() {
 
   const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
 
-  const { handleMenuAction } = useMenuActions(
+  const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes,
     addNode, deleteNode, duplicateNode,
     screenToFlow, generate3DFromImage,
     uploadPosRef, fileInputRef,
-  );
+  });
 
   useKeyboardShortcuts({
     editingNodeId, edgeToDelete, selectedNode,
