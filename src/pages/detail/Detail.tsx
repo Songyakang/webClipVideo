@@ -7,6 +7,8 @@ import {
   useNodesState,
   useEdgesState,
   type Edge,
+  type ReactFlowInstance,
+  type NodeTypes,
   BackgroundVariant,
   SelectionMode,
 } from "@xyflow/react";
@@ -24,7 +26,7 @@ import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import DirectorNode from "./nodes/DirectorNode";
-import type { FlowNode } from "./nodes/types";
+import type { FlowNode, NodeData } from "./nodes/types";
 import { invoke } from "@tauri-apps/api/core";
 import { resolveAssetPath } from "../../lib/assets";
 import type { Generate3DResult, SceneModel } from "../../lib/types";
@@ -36,7 +38,7 @@ import type { DirectorNodeData } from "../../lib/types";
 import "./Detail.css";
 import "./nodes/nodes.css";
 
-const nodeTypes = {
+const nodeTypes: NodeTypes = {
   text: TextNode,
   image: ImageNode,
   "image-upload": ImageNode,
@@ -59,7 +61,7 @@ export default function Detail() {
   const [showSubtitles, setShowSubtitles] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const rfInstance = useRef<any>(null);
+  const rfInstance = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
   const loadedRef = useRef(false);
   const nodeIdCounterRef = useRef(0);
   const edgeIdCounterRef = useRef(0);
@@ -169,13 +171,12 @@ export default function Detail() {
               console.error("resolveAssetPath returned empty for:", imagePath);
               return;
             }
-            invoke("generate_3d", { imagePath: imageAbsPath, projectId: id! })
-              .then((result) => {
-              const generateResult = result as Generate3DResult;
+            invoke<Generate3DResult>("generate_3d", { imagePath: imageAbsPath, projectId: id! })
+              .then((generateResult) => {
               setNodes((prev) =>
                 prev.map((n) => {
                   if (n.id !== directorId) return n;
-                  const models: SceneModel[] = (n.data as any).models.map((m: SceneModel) =>
+                  const models: SceneModel[] = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
                     m.id === modelId
                       ? {
                           ...m,
@@ -195,7 +196,7 @@ export default function Detail() {
               setNodes((prev) =>
                 prev.map((n) => {
                   if (n.id !== directorId) return n;
-                  const models: SceneModel[] = (n.data as any).models.map((m: SceneModel) =>
+                  const models: SceneModel[] = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
                     m.id === modelId ? { ...m, status: "error" as const } : m
                   );
                   return { ...n, data: { ...n.data, models } };
@@ -208,7 +209,7 @@ export default function Detail() {
           setNodes((prev) =>
             prev.map((n) => {
               if (n.id !== directorId) return n;
-              const models = (n.data as any).models.map((m: any) =>
+              const models = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
                 m.id === modelId ? { ...m, status: "error" as const } : m
               );
               return { ...n, data: { ...n.data, models } };
@@ -273,9 +274,9 @@ export default function Detail() {
         }}
         onInit={(instance) => { rfInstance.current = instance; }}
         onSelectionChange={({ nodes: sel }) => {
-          setSelectedNode(sel.length === 1 ? sel[0] as unknown as FlowNode : null);
+          setSelectedNode(sel.length === 1 ? sel[0] as FlowNode : null);
         }}
-        nodeTypes={nodeTypes as any}
+        nodeTypes={nodeTypes}
         fitView={false}
         defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
         minZoom={0.2}
@@ -357,7 +358,7 @@ export default function Detail() {
               setNodes((prev) =>
                 prev.map((n) =>
                   n.id === directorNodeId
-                    ? { ...n, data: newData as any }
+                    ? { ...n, data: newData as unknown as NodeData }
                     : n
                 ) as FlowNode[]
               );

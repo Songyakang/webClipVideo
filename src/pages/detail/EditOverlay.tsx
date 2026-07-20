@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
+import type { ReactFlowInstance } from "@xyflow/react";
+import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./nodes/types";
 
 interface Props {
   node: FlowNode;
   onCommit: (text: string) => void;
-  rfInstance: React.MutableRefObject<any>;
+  rfInstance: React.MutableRefObject<ReactFlowInstance<FlowNode, Edge> | null>;
 }
 
 export default function EditOverlay({ node, onCommit, rfInstance }: Props) {
