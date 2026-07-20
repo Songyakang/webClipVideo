@@ -1,0 +1,120 @@
+<h2>导演台内部 — 3D 视口布局</h2>
+<p class="subtitle">双击导演台节点进入 3D 场景编辑视图</p>
+
+<div class="mockup">
+  <div class="mockup-header">导演台 3D 视图（全屏展开）</div>
+  <div class="mockup-body">
+    <div style="background: #0d0d1a; border-radius: 8px; overflow: hidden; font-family: monospace; font-size: 12px;">
+
+      <!-- 顶部工具栏 -->
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1a1a2e; border-bottom: 1px solid #2a2a4a;">
+        <span style="color: #a78bfa; font-weight: 600;">🎬 导演台</span>
+        <span style="color: #555;">|</span>
+        <span style="color: #888;">🖐 移动</span>
+        <span style="color: #888;">🔄 旋转</span>
+        <span style="color: #888;">🔍 缩放</span>
+        <span style="color: #555;">|</span>
+        <span style="color: #888;">📷 添加摄像机</span>
+        <span style="color: #888;">💡 添加灯光</span>
+        <span style="margin-left: auto; color: #4ade80;">▶ 预览</span>
+        <span style="color: #f59e0b;">⬇ 导出</span>
+        <span style="color: #ef4444;">✕ 关闭</span>
+      </div>
+
+      <!-- 主区域：3D视口 + 侧面板 -->
+      <div style="display: flex; height: 420px;">
+
+        <!-- 3D 视口 -->
+        <div style="flex: 1; background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a14 100%); position: relative; display: flex; align-items: center; justify-content: center;">
+          <!-- 网格地面 -->
+          <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 50%; background: linear-gradient(to bottom, transparent, rgba(30,30,60,0.3)); border-top: 1px solid rgba(100,100,200,0.15);"></div>
+          <!-- 网格线 -->
+          <div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 30px 30px;"></div>
+
+          <!-- 3D 模型占位 -->
+          <div style="position: relative; z-index: 1; width: 140px; height: 160px; background: linear-gradient(135deg, #4c1d95, #7c3aed); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 48px; box-shadow: 0 0 40px rgba(124,58,237,0.4); transform: perspective(400px) rotateY(-15deg) rotateX(5deg);">
+            🏛️
+          </div>
+
+          <!-- 底部坐标轴 -->
+          <div style="position: absolute; bottom: 12px; left: 12px; color: #666; font-size: 10px;">[ 透视图 ]</div>
+          <div style="position: absolute; bottom: 12px; right: 12px; display: flex; gap: 4px;">
+            <span style="color: #ef4444;">X</span>
+            <span style="color: #4ade80;">Y</span>
+            <span style="color: #60a5fa;">Z</span>
+          </div>
+        </div>
+
+        <!-- 右侧面板 -->
+        <div style="width: 240px; background: #12121e; border-left: 1px solid #2a2a4a; padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
+
+          <!-- 模型列表 -->
+          <div>
+            <div style="color: #a78bfa; font-weight: 600; margin-bottom: 8px;">📦 场景模型</div>
+            <div style="padding: 8px; background: #1a1a2e; border-radius: 6px; border-left: 3px solid #7c3aed; margin-bottom: 4px;">
+              <div style="color: #e0e0e0;">🏛️ scene-shot</div>
+              <div style="font-size: 10px; color: #666;">顶点: 12.4K | 面: 8.2K</div>
+            </div>
+            <div style="padding: 8px; background: #1a1a2e; border-radius: 6px; border-left: 3px solid #3b82f6; opacity: 0.6;">
+              <div style="color: #888;">👤 char-shot</div>
+              <div style="font-size: 10px; color: #555;">生成中...</div>
+            </div>
+          </div>
+
+          <!-- 属性面板 -->
+          <div>
+            <div style="color: #a78bfa; font-weight: 600; margin-bottom: 8px;">📐 变换</div>
+            <div style="display: grid; grid-template-columns: 20px 1fr; gap: 6px 8px; font-size: 11px; color: #999;">
+              <span style="color: #ef4444;">X</span><span>0.00</span>
+              <span style="color: #4ade80;">Y</span><span>1.20</span>
+              <span style="color: #60a5fa;">Z</span><span>0.00</span>
+              <span>R</span><span>0° / 0° / 0°</span>
+              <span>S</span><span>1.0</span>
+            </div>
+          </div>
+
+          <!-- 摄像机列表 -->
+          <div>
+            <div style="color: #a78bfa; font-weight: 600; margin-bottom: 8px;">🎥 摄像机</div>
+            <div style="padding: 6px 8px; background: #1a1a2e; border-radius: 4px; font-size: 11px; color: #4ade80;">
+              ● Cam_01 — 主视角
+            </div>
+            <div style="padding: 4px 8px; font-size: 11px; color: #555;">+ 添加摄像机</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>布局确认</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="layout-toolbar" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>顶部工具栏</h3>
+        <p>操作模式切换 + 预览/导出/关闭按钮</p>
+      </div>
+    </div>
+    <div class="option" data-choice="layout-viewport" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>3D 视口（主体）</h3>
+        <p>Orillusion 渲染区域 + 网格地面 + 坐标轴</p>
+      </div>
+    </div>
+    <div class="option" data-choice="layout-panel" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>右侧面板</h3>
+        <p>场景模型列表 + 变换属性 + 摄像机列表</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle">这个 3D 视口布局是否合理？有没有要调整或补充的模块？</p>
+</div>

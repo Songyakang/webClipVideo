@@ -1,0 +1,83 @@
+<h2>右键菜单交互流程</h2>
+<p class="subtitle">画布上选中图片节点 → 右键 → 选择"转为3D模型"</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">步骤1：右键菜单</div>
+    <div class="mockup-body">
+      <div style="padding: 20px; background: #1a1a2e; border-radius: 8px; color: #e0e0e0; font-family: monospace; font-size: 13px; position: relative;">
+        <!-- 画布模拟 -->
+        <div style="display: flex; align-items: center; gap: 30px; margin-bottom: 20px;">
+          <div style="padding: 12px 20px; background: #16213e; border: 2px solid #0f3460; border-radius: 6px; text-align: center;">
+            📷 图片节点<br><span style="font-size: 10px; color: #888;">scene-shot.jpg</span>
+          </div>
+        </div>
+        <!-- 右键菜单 -->
+        <div style="position: relative; left: 80px; width: 200px; background: #252540; border: 1px solid #444; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); overflow: hidden;">
+          <div style="padding: 8px 16px; cursor: pointer; transition: 0.15s;">✂️ 剪切</div>
+          <div style="padding: 8px 16px; cursor: pointer;">📋 复制</div>
+          <div style="padding: 8px 16px; cursor: pointer;">🗑️ 删除</div>
+          <div style="margin: 4px 0; border-top: 1px solid #444;"></div>
+          <div style="padding: 8px 16px; cursor: pointer; background: #3a2f6e; color: #c4b5fd; font-weight: 600;">🔄 转为3D模型</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">步骤2：生成后自动连线</div>
+    <div class="mockup-body">
+      <div style="padding: 20px; background: #1a1a2e; border-radius: 8px; color: #e0e0e0; font-family: monospace; font-size: 13px;">
+        <div style="display: flex; align-items: center; gap: 30px;">
+          <!-- 图片节点 -->
+          <div style="padding: 12px 20px; background: #16213e; border: 2px solid #0f3460; border-radius: 6px; text-align: center;">
+            📷 图片节点<br><span style="font-size: 10px; color: #888;">scene-shot.jpg</span>
+          </div>
+          <!-- 连线箭头 -->
+          <div style="display: flex; align-items: center; color: #7c3aed;">
+            <div style="width: 40px; height: 2px; background: #7c3aed;"></div>
+            <div style="font-size: 18px;">→</div>
+          </div>
+          <!-- 导演台节点 -->
+          <div style="padding: 16px 24px; background: #1a0a2e; border: 2px solid #7c3aed; border-radius: 8px; text-align: center; box-shadow: 0 0 12px rgba(124,58,237,0.3);">
+            🎬 导演台<br><span style="font-size: 10px; color: #a78bfa;">3D Scene</span>
+          </div>
+        </div>
+        <div style="margin-top: 16px; padding: 10px; background: #252540; border-radius: 6px; font-size: 11px; color: #a78bfa;">
+          💡 多个图片可以 connect 到同一个导演台节点
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>确认清单</h3>
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>右键菜单入口</h3>
+        <p>选中图片节点右键，新增"转为3D模型"选项</p>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>自动创建导演台 + 连线</h3>
+        <p>生成后新建导演台节点，原图片节点自动连线到导演台</p>
+      </div>
+    </div>
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>多图片接入同一导演台</h3>
+        <p>多个图片节点可以连线到同一个导演台节点</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle" style="color: #f59e0b;">⬆️ 点击选项确认，有异议或不完整的直接说</p>
+</div>

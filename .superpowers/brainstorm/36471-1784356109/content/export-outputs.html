@@ -1,0 +1,90 @@
+<h2>导演台输出 — 三种产物</h2>
+<p class="subtitle">渲染视频 / AI参考帧 / 运镜数据</p>
+
+<div class="options" data-multiselect>
+  <!-- 输出1：渲染视频 -->
+  <div class="option" data-choice="export-video" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content" style="flex: 1;">
+      <h3>🎬 渲染视频片段</h3>
+      <p style="margin-bottom: 12px;">将导演台 3D 场景 + 运镜动画渲染为 MP4，直接成为时间线 clip</p>
+      <div style="display: flex; gap: 12px; font-size: 11px; color: #a78bfa;">
+        <span>📐 分辨率: 1920x1080</span>
+        <span>🎞 帧率: 30fps</span>
+        <span>⏱ 时长: 与运镜时间线一致</span>
+      </div>
+      <div style="margin-top: 8px; padding: 6px 10px; background: #1a1a2e; border-radius: 4px; font-size: 10px; color: #888;">
+        🔧 实现：Orillusion canvas → MediaRecorder/FFmpeg → MP4 → 写入项目 assets 目录
+      </div>
+    </div>
+  </div>
+
+  <!-- 输出2：AI参考帧 -->
+  <div class="option" data-choice="export-ref" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content" style="flex: 1;">
+      <h3>🖼 AI 参考帧截图</h3>
+      <p style="margin-bottom: 12px;">截取当前 3D 视口画面，作为 AI 生成管线（如 ControlNet）的参考输入</p>
+      <div style="display: flex; gap: 12px; font-size: 11px; color: #a78bfa;">
+        <span>🖼 PNG 格式</span>
+        <span>📐 视口分辨率</span>
+        <span>🎯 含深度通道(可选)</span>
+      </div>
+      <div style="margin-top: 8px; padding: 6px 10px; background: #1a1a2e; border-radius: 4px; font-size: 10px; color: #888;">
+        🔧 实现：Orillusion readback → Canvas.toDataURL → 写入文件 / 传递给 AI 节点
+      </div>
+    </div>
+  </div>
+
+  <!-- 输出3：运镜数据 -->
+  <div class="option" data-choice="export-cam" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content" style="flex: 1;">
+      <h3>📐 运镜数据导出</h3>
+      <p style="margin-bottom: 12px;">导出摄像机轨迹数据（JSON），供外部渲染器或进一步处理使用</p>
+      <div style="margin-top: 8px; padding: 8px 12px; background: #0d0d1a; border-radius: 4px; font-size: 10px; font-family: monospace; color: #4ade80;">
+        {<br>
+        &nbsp;&nbsp;"camera": "Cam_01",<br>
+        &nbsp;&nbsp;"fov": 45,<br>
+        &nbsp;&nbsp;"keyframes": [<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;{ "t": 0.0, "pos": [0,1.5,5], "lookAt": [0,0,0] },<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;{ "t": 2.0, "pos": [3,2.2,2], "lookAt": [0,0.5,0] },<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;{ "t": 5.0, "pos": [-2,0.8,3], "lookAt": [0,0,0] }<br>
+        &nbsp;&nbsp;]<br>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>输出流程确认</h3>
+  <div class="mockup">
+    <div class="mockup-header">导演台节点 → 输出产物流向</div>
+    <div class="mockup-body">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 16px; padding: 20px; background: #0d0d1a; border-radius: 8px; flex-wrap: wrap; font-family: monospace; font-size: 12px;">
+
+        <div style="padding: 14px 20px; background: #1a0a2e; border: 2px solid #7c3aed; border-radius: 8px; text-align: center;">
+          🎬 导演台
+        </div>
+
+        <div style="font-size: 18px; color: #555;">→</div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="padding: 10px 16px; background: #16213e; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: #4ade80;">🎬</span>
+            <span style="color: #e0e0e0;">MP4 → 时间线 clip</span>
+          </div>
+          <div style="padding: 10px 16px; background: #16213e; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: #f59e0b;">🖼</span>
+            <span style="color: #e0e0e0;">PNG → AI参考管线</span>
+          </div>
+          <div style="padding: 10px 16px; background: #16213e; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: #60a5fa;">📐</span>
+            <span style="color: #e0e0e0;">JSON → 导出文件</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

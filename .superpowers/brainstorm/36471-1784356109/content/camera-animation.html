@@ -1,0 +1,131 @@
+<h2>运镜动画 — 摄像机轨迹与关键帧</h2>
+<p class="subtitle">在 3D 视口中设置虚拟摄像机运动路径</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">关键帧时间线（底部面板）</div>
+    <div class="mockup-body">
+      <div style="background: #0d0d1a; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 11px;">
+
+        <!-- 摄像机轨道列表 -->
+        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: #1a1a2e; border-radius: 4px; min-width: 120px;">
+              <span style="color: #4ade80;">●</span>
+              <span style="color: #e0e0e0;">Cam_01</span>
+              <span style="margin-left: auto; color: #555;">👁</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: transparent; border-radius: 4px; min-width: 120px; opacity: 0.4;">
+              <span style="color: #3b82f6;">●</span>
+              <span style="color: #888;">Cam_02</span>
+            </div>
+          </div>
+
+          <!-- 时间线轨道 -->
+          <div style="flex: 1; position: relative;">
+            <!-- 时间标尺 -->
+            <div style="display: flex; justify-content: space-between; color: #555; margin-bottom: 4px; font-size: 10px;">
+              <span>0:00</span><span>0:01</span><span>0:02</span><span>0:03</span><span>0:04</span><span>0:05</span>
+            </div>
+            <!-- Cam_01 轨道 -->
+            <div style="height: 28px; background: #1a1a2e; border-radius: 4px; margin-bottom: 4px; position: relative; border-left: 2px solid #4ade80;">
+              <div style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; background: #4ade80; border-radius: 2px; border: 1px solid #fff;"></div>
+              <div style="position: absolute; left: 90px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; background: #f59e0b; border-radius: 2px; border: 1px solid #fff;"></div>
+              <div style="position: absolute; left: 200px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; background: #ef4444; border-radius: 2px; border: 1px solid #fff;"></div>
+              <!-- 播放头 -->
+              <div style="position: absolute; left: 120px; top: -4px; width: 2px; height: 36px; background: #fff; z-index: 2;"></div>
+              <div style="position: absolute; left: 114px; top: -10px; width: 14px; height: 10px; background: #fff; border-radius: 3px 3px 0 0;"></div>
+            </div>
+            <!-- Cam_02 轨道 -->
+            <div style="height: 28px; background: #1a1a2e; border-radius: 4px; position: relative; opacity: 0.4;">
+              <div style="position: absolute; left: 40px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; background: #3b82f6; border-radius: 2px; border: 1px solid #fff;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 播放控制 -->
+        <div style="display: flex; align-items: center; gap: 8px; justify-content: center; padding-top: 8px; border-top: 1px solid #2a2a4a;">
+          <span style="color: #888;">⏮</span>
+          <span style="color: #888;">⏪</span>
+          <span style="font-size: 18px; color: #4ade80;">▶</span>
+          <span style="color: #888;">⏩</span>
+          <span style="color: #888;">⏭</span>
+          <span style="color: #555;">|</span>
+          <span style="color: #888;">+ 关键帧</span>
+          <span style="color: #888;">🔁 循环</span>
+          <span style="margin-left: 8px; font-size: 10px; color: #a78bfa;">ease-in-out</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">3D 视口中的摄像机路径</div>
+    <div class="mockup-body">
+      <div style="background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a14 100%); border-radius: 8px; height: 280px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <!-- 网格 -->
+        <div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+        <!-- 模型 -->
+        <div style="position: relative; z-index: 1; width: 80px; height: 100px; background: linear-gradient(135deg, #4c1d95, #7c3aed); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 0 30px rgba(124,58,237,0.3);">
+          🏛️
+        </div>
+
+        <!-- 摄像机路径曲线 -->
+        <svg style="position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%;" viewBox="0 0 400 280">
+          <defs>
+            <linearGradient id="pathGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#4ade80" stop-opacity="0.8"/>
+              <stop offset="50%" stop-color="#f59e0b" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="#ef4444" stop-opacity="0.8"/>
+            </linearGradient>
+          </defs>
+          <!-- 贝塞尔路径 -->
+          <path d="M 60 200 C 140 180, 180 60, 260 80 C 300 90, 340 160, 350 120"
+                fill="none" stroke="url(#pathGrad)" stroke-width="2" stroke-dasharray="8,4" opacity="0.6"/>
+          <!-- 关键帧节点 -->
+          <circle cx="60" cy="200" r="6" fill="#4ade80" stroke="#fff" stroke-width="2"/>
+          <circle cx="260" cy="80" r="6" fill="#f59e0b" stroke="#fff" stroke-width="2"/>
+          <circle cx="350" cy="120" r="6" fill="#ef4444" stroke="#fff" stroke-width="2"/>
+          <!-- 摄像机图标 -->
+          <g transform="translate(155, 140)">
+            <rect x="-8" y="-6" width="16" height="10" rx="2" fill="white" opacity="0.9"/>
+            <rect x="-3" y="-9" width="6" height="3" rx="1" fill="white" opacity="0.9"/>
+            <circle cx="0" cy="-1" r="2" fill="#7c3aed"/>
+          </g>
+          <!-- 标签 -->
+          <text x="60" y="220" fill="#4ade80" font-size="10" font-family="monospace">起点 (0:00)</text>
+          <text x="240" y="70" fill="#f59e0b" font-size="10" font-family="monospace">中段 (0:02)</text>
+          <text x="310" y="110" fill="#ef4444" font-size="10" font-family="monospace">终点 (0:05)</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>运镜交互确认</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="cam-keyframe" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>关键帧时间线</h3>
+        <p>底部面板，多个摄像机轨道，关键帧拖拽编辑，缓动曲线</p>
+      </div>
+    </div>
+    <div class="option" data-choice="cam-path" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>3D 视口路径可视化</h3>
+        <p>贝塞尔曲线显示摄像机运动轨迹，路径上关键帧节点可拖拽</p>
+      </div>
+    </div>
+    <div class="option" data-choice="cam-multi" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>多摄像机支持</h3>
+        <p>多个摄像机轨道，切换不同运镜视角，最终可拼接或选择</p>
+      </div>
+    </div>
+  </div>
+</div>

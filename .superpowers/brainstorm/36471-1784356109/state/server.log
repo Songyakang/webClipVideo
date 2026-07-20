@@ -1,0 +1,19 @@
+{"type":"server-started","port":53362,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:53362/?key=29de94cb6debc6cd6082f687c019d7e4d3d7e4f4af5afeca2095c9a4ca543e07","screen_dir":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content","state_dir":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/state","idle_timeout_ms":14400000}
+{"type":"screen-added","file":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content/context-menu.html"}
+{"source":"user-event","type":"click","text":"1\n      \n        右键菜单入口\n        选中图片节点右键，新增\"转为3D模型\"选项","choice":"a","id":null,"timestamp":1784356139080}
+{"source":"user-event","type":"click","text":"2\n      \n        自动创建导演台 + 连线\n        生成后新建导演台节点，原图片节点自动连线到导演台","choice":"b","id":null,"timestamp":1784356139945}
+{"source":"user-event","type":"click","text":"3\n      \n        多图片接入同一导演台\n        多个图片节点可以连线到同一个导演台节点","choice":"c","id":null,"timestamp":1784356141046}
+{"type":"screen-added","file":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content/director-viewport.html"}
+{"source":"user-event","type":"click","text":"2\n      \n        3D 视口（主体）\n        Orillusion 渲染区域 + 网格地面 + 坐标轴","choice":"layout-viewport","id":null,"timestamp":1784356277015}
+{"source":"user-event","type":"click","text":"3\n      \n        右侧面板\n        场景模型列表 + 变换属性 + 摄像机列表","choice":"layout-panel","id":null,"timestamp":1784356277681}
+{"source":"user-event","type":"click","text":"1\n      \n        顶部工具栏\n        操作模式切换 + 预览/导出/关闭按钮","choice":"layout-toolbar","id":null,"timestamp":1784356278331}
+{"type":"screen-added","file":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content/camera-animation.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        关键帧时间线\n        底部面板，多个摄像机轨道，关键帧拖拽编辑，缓动曲线","choice":"cam-keyframe","id":null,"timestamp":1784356366447}
+{"source":"user-event","type":"click","text":"B\n      \n        3D 视口路径可视化\n        贝塞尔曲线显示摄像机运动轨迹，路径上关键帧节点可拖拽","choice":"cam-path","id":null,"timestamp":1784356367030}
+{"source":"user-event","type":"click","text":"C\n      \n        多摄像机支持\n        多个摄像机轨道，切换不同运镜视角，最终可拼接或选择","choice":"cam-multi","id":null,"timestamp":1784356367680}
+{"type":"screen-added","file":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content/export-outputs.html"}
+{"type":"screen-added","file":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content/export-outputs-v2.html"}
+{"source":"user-event","type":"click","text":"1\n    \n      🎬 渲染视频片段\n      将导演台 3D 场景 + 运镜动画渲染为 MP4，直接成为时间线 clip\n\n      \n        📐 渲染分辨率\n        \n          1280×720720p\n          1920×10801080p ✓\n          2560×14402K\n          3840×21604K UHD\n          4096×21604K DCI\n        \n      \n\n      \n        🎞 帧率: 30fps\n        ⏱ 时长: 与运镜时间线一致\n      \n      \n        🔧 实现：Orillusion canvas → MediaRecorder/FFmpeg → MP4 → 写入项目 assets 目录","choice":"export-video","id":null,"timestamp":1784356491830}
+{"source":"user-event","type":"click","text":"1\n    \n      🎬 渲染视频片段\n      将导演台 3D 场景 + 运镜动画渲染为 MP4，直接成为时间线 clip\n\n      \n        📐 渲染分辨率\n        \n          1280×720720p\n          1920×10801080p ✓\n          2560×14402K\n          3840×21604K UHD\n          4096×21604K DCI\n        \n      \n\n      \n        🎞 帧率: 30fps\n        ⏱ 时长: 与运镜时间线一致\n      \n      \n        🔧 实现：Orillusion canvas → MediaRecorder/FFmpeg → MP4 → 写入项目 assets 目录","choice":"export-video","id":null,"timestamp":1784356492613}
+{"type":"screen-added","file":"/Users/songyakang/Desktop/奇思妙想/webVideoClip/.superpowers/brainstorm/36471-1784356109/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}
