@@ -4,7 +4,11 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 const TRIPO_API_URL: &str = "https://api.tripo3d.ai/v2/openapi";
-const TRIPO_API_KEY: &str = "placeholder-api-key";
+
+fn get_api_key() -> Result<String, String> {
+    std::env::var("TRIPO_API_KEY")
+        .map_err(|_| "TRIPO_API_KEY environment variable not set".to_string())
+}
 
 #[derive(Serialize)]
 struct TripoGenerateRequest {
@@ -89,7 +93,7 @@ async fn download_file(url: &str, dest: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-async fn poll_task(client: &reqwest::Client, task_id: &str) -> Result<TripoTaskResult, String> {
+async fn poll_task(client: &reqwest::Client, task_id: &str, api_key: &str) -> Result<TripoTaskResult, String> {
     let url = format!("{}/task/{}", TRIPO_API_URL, task_id);
     let mut attempts = 0u32;
     loop {
@@ -99,7 +103,7 @@ async fn poll_task(client: &reqwest::Client, task_id: &str) -> Result<TripoTaskR
         }
         let resp = client
             .get(&url)
-            .header("Authorization", format!("Bearer {}", TRIPO_API_KEY))
+            .header("Authorization", format!("Bearer {}", api_key))
             .send()
             .await
             .map_err(|e| format!("poll failed: {}", e))?;
@@ -138,6 +142,8 @@ pub async fn generate_3d(
         .build()
         .map_err(|e| format!("client build failed: {}", e))?;
 
+    let api_key = get_api_key()?;
+
     // Step 1: submit task
     let file_bytes = tokio::fs::read(&image_path)
         .await
@@ -149,7 +155,7 @@ pub async fn generate_3d(
     let form = reqwest::multipart::Form::new().part("file", part);
     let submit_resp = client
         .post(format!("{}/task", TRIPO_API_URL))
-        .header("Authorization", format!("Bearer {}", TRIPO_API_KEY))
+        .header("Authorization", format!("Bearer {}", &api_key))
         .multipart(form)
         .send()
         .await
@@ -164,7 +170,7 @@ pub async fn generate_3d(
     let task_id = submit_body.data.unwrap().task_id;
 
     // Step 2: poll until done
-    let result = poll_task(&client, &task_id).await?;
+    let result = poll_task(&client, &task_id, &api_key).await?;
 
     // Step 3: download model + thumbnail
     let models_dir = ensure_models_dir(&app, &project_id).await?;
