@@ -23,7 +23,7 @@ export default function KeyframeTimeline({
   onPlay,
   onPause,
   onSeek,
-  onKeyframesChange: _onKeyframesChange,
+  onKeyframesChange,
 }: Props) {
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -36,6 +36,23 @@ export default function KeyframeTimeline({
     },
     [duration, onSeek]
   );
+
+  const handleAddKeyframe = useCallback(() => {
+    const activeTrack = tracks.find((t) => t.id === activeCameraId);
+    if (!activeTrack) return;
+
+    const newKeyframe: CameraKeyframe = {
+      time: currentTime,
+      fov: activeTrack.keyframes[activeTrack.keyframes.length - 1]?.fov ?? 45,
+      position: activeTrack.keyframes[activeTrack.keyframes.length - 1]?.position ?? [0, 0, 0],
+      lookAt: activeTrack.keyframes[activeTrack.keyframes.length - 1]?.lookAt ?? [0, 0, 0],
+    };
+
+    const updatedKeyframes = [...activeTrack.keyframes, newKeyframe].sort(
+      (a, b) => a.time - b.time
+    );
+    onKeyframesChange(activeCameraId, updatedKeyframes);
+  }, [tracks, activeCameraId, currentTime, onKeyframesChange]);
 
   return (
     <div className="kf-timeline">
@@ -98,7 +115,9 @@ export default function KeyframeTimeline({
         <span className="kf-time-display">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
-        <button className="kf-ctrl-btn" title="添加关键帧">+ 关键帧</button>
+        <button className="kf-ctrl-btn" title="添加关键帧" onClick={handleAddKeyframe}>
+          + 关键帧
+        </button>
       </div>
     </div>
   );

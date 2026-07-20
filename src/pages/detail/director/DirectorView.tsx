@@ -1,10 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import type { DirectorNodeData, SceneModel, TransformMode } from "./types";
-import { useDirectorEngine } from "./useDirectorEngine";
+import { useDirectorEngine, updateCameraFromKeyframe } from "./useDirectorEngine";
 import { useCameraAnimation } from "./useCameraAnimation";
 import ScenePanel from "./ScenePanel";
 import KeyframeTimeline from "./KeyframeTimeline";
 import ExportMenu from "./ExportMenu";
+import WebGPUGuard from "./WebGPUCheck";
 import "./DirectorView.css";
 
 interface Props {
@@ -23,17 +24,20 @@ export default function DirectorView({ data, onClose, onUpdate, projectId }: Pro
 
   const activeTrack = data.cameraTracks.find((t) => t.id === activeCameraId) ?? data.cameraTracks[0];
 
-  const { initEngine, loadModel } = useDirectorEngine({
+  const { initEngine, loadModel, cameraObjRef } = useDirectorEngine({
     canvasRef,
     models: data.models,
     cameraTrack: activeTrack,
     sceneSettings: data.sceneSettings,
   });
 
-  const { playing, currentTime, duration, play, pause, seek } = useCameraAnimation({
+  const { playing, currentTime, duration, play, pause, seek, getCameraAtTime } = useCameraAnimation({
     track: activeTrack,
-    onFrame: (_time: number) => {
-      // Update 3D viewport camera per frame
+    onFrame: (time: number) => {
+      const kf = getCameraAtTime(time);
+      if (kf && cameraObjRef.current) {
+        updateCameraFromKeyframe(cameraObjRef.current, kf);
+      }
     },
   });
 
@@ -57,37 +61,38 @@ export default function DirectorView({ data, onClose, onUpdate, projectId }: Pro
   }, [data, onUpdate]);
 
   return (
-    <div className="director-view-overlay">
+    <WebGPUGuard>
+      <div className="director-view-overlay">
       {/* Toolbar */}
       <div className="dv-toolbar">
         <div className="dv-toolbar-left">
-          <span className="dv-title">{data.label}</span>
+          <span className="dv-title">🎬 {data.label}</span>
 
           <div className="dv-transform-modes">
             <button
               className={`dv-mode-btn${transformMode === "translate" ? " active" : ""}`}
               onClick={() => setTransformMode("translate")}
             >
-              移动
+              🖐 移动
             </button>
             <button
               className={`dv-mode-btn${transformMode === "rotate" ? " active" : ""}`}
               onClick={() => setTransformMode("rotate")}
             >
-              旋转
+              🔄 旋转
             </button>
             <button
               className={`dv-mode-btn${transformMode === "scale" ? " active" : ""}`}
               onClick={() => setTransformMode("scale")}
             >
-              缩放
+              🔍 缩放
             </button>
           </div>
         </div>
 
         <div className="dv-toolbar-right">
-          <button className="dv-btn" onClick={() => setShowExport(true)}>导出</button>
-          <button className="dv-btn dv-btn-close" onClick={onClose}>关闭</button>
+          <button className="dv-btn" onClick={() => setShowExport(true)}>⬇ 导出</button>
+          <button className="dv-btn dv-btn-close" onClick={onClose}>✕ 关闭</button>
         </div>
       </div>
 
@@ -138,6 +143,7 @@ export default function DirectorView({ data, onClose, onUpdate, projectId }: Pro
           onClose={() => setShowExport(false)}
         />
       )}
-    </div>
+      </div>
+    </WebGPUGuard>
   );
 }

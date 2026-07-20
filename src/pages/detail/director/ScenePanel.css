@@ -85,6 +85,22 @@
 .sp-axis.z { color: #60a5fa; }
 .sp-value { color: #a0a0b8; font-family: monospace; }
 
+.sp-value-input {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #a0a0b8;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 2px 4px;
+  width: 100%;
+  outline: none;
+}
+
+.sp-value-input:focus {
+  border-color: #7c3aed;
+}
+
 .sp-camera-item {
   display: flex;
   align-items: center;

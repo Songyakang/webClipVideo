@@ -18,13 +18,13 @@ export default function ScenePanel({
   activeCameraId,
   onActiveCameraChange,
   onModelSelect,
-  onModelTransformUpdate: _onModelTransformUpdate,
+  onModelTransformUpdate,
 }: Props) {
   return (
     <div className="scene-panel">
       {/* Models section */}
       <div className="sp-section">
-        <div className="sp-section-title">场景模型</div>
+        <div className="sp-section-title">📦 场景模型</div>
         {models.length === 0 && (
           <div className="sp-empty">暂无模型</div>
         )}
@@ -54,23 +54,61 @@ export default function ScenePanel({
       {/* Transform section */}
       {activeModelId && models.find((m) => m.id === activeModelId) && (
         <div className="sp-section">
-          <div className="sp-section-title">变换</div>
+          <div className="sp-section-title">📐 变换</div>
           {(() => {
             const m = models.find((m2) => m2.id === activeModelId)!;
             return (
               <div className="sp-transform-grid">
                 <span className="sp-axis x">X</span>
-                <span className="sp-value">{m.transform.position[0].toFixed(2)}</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  className="sp-value-input"
+                  value={m.transform.position[0]}
+                  onChange={(e) => {
+                    const pos: [number, number, number] = [...m.transform.position];
+                    pos[0] = parseFloat(e.target.value) || 0;
+                    onModelTransformUpdate(m.id, { ...m.transform, position: pos });
+                  }}
+                />
                 <span className="sp-axis y">Y</span>
-                <span className="sp-value">{m.transform.position[1].toFixed(2)}</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  className="sp-value-input"
+                  value={m.transform.position[1]}
+                  onChange={(e) => {
+                    const pos: [number, number, number] = [...m.transform.position];
+                    pos[1] = parseFloat(e.target.value) || 0;
+                    onModelTransformUpdate(m.id, { ...m.transform, position: pos });
+                  }}
+                />
                 <span className="sp-axis z">Z</span>
-                <span className="sp-value">{m.transform.position[2].toFixed(2)}</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  className="sp-value-input"
+                  value={m.transform.position[2]}
+                  onChange={(e) => {
+                    const pos: [number, number, number] = [...m.transform.position];
+                    pos[2] = parseFloat(e.target.value) || 0;
+                    onModelTransformUpdate(m.id, { ...m.transform, position: pos });
+                  }}
+                />
                 <span className="sp-axis">R</span>
                 <span className="sp-value">
                   {m.transform.rotation[0]}° / {m.transform.rotation[1]}° / {m.transform.rotation[2]}°
                 </span>
                 <span className="sp-axis">S</span>
-                <span className="sp-value">{m.transform.scale.toFixed(1)}</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  className="sp-value-input"
+                  value={m.transform.scale}
+                  onChange={(e) => {
+                    onModelTransformUpdate(m.id, { ...m.transform, scale: parseFloat(e.target.value) || 1 });
+                  }}
+                />
               </div>
             );
           })()}
@@ -79,7 +117,7 @@ export default function ScenePanel({
 
       {/* Camera section */}
       <div className="sp-section">
-        <div className="sp-section-title">摄像机</div>
+        <div className="sp-section-title">🎥 摄像机</div>
         {cameraTracks.map((track) => (
           <div
             key={track.id}

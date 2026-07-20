@@ -8,6 +8,11 @@ interface UseDirectorEngineOptions {
   sceneSettings: { backgroundColor: string; ambientLight: number; gridVisible: boolean };
 }
 
+export function updateCameraFromKeyframe(camObj: any, kf: CameraKeyframe) {
+  camObj.transform.localPosition.set(kf.position[0], kf.position[1], kf.position[2]);
+  camObj.transform.lookAt({ x: kf.lookAt[0], y: kf.lookAt[1], z: kf.lookAt[2] });
+}
+
 export function useDirectorEngine(options: UseDirectorEngineOptions) {
   const { canvasRef, models: _models, cameraTrack, sceneSettings } = options;
   const engineRef = useRef<any>(null);
@@ -69,12 +74,6 @@ export function useDirectorEngine(options: UseDirectorEngineOptions) {
       console.error("Failed to load model:", model.id, err);
     }
   }, []);
-
-  // Update camera from keyframe
-  function updateCameraFromKeyframe(camObj: any, kf: CameraKeyframe) {
-    camObj.transform.localPosition.set(kf.position[0], kf.position[1], kf.position[2]);
-    camObj.transform.lookAt({ x: kf.lookAt[0], y: kf.lookAt[1], z: kf.lookAt[2] });
-  }
 
   // Cleanup
   useEffect(() => {

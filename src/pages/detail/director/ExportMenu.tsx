@@ -124,7 +124,7 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
   return (
     <div className="export-overlay" onClick={onClose}>
       <div className="export-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>导出</h3>
+        <h3>⬇ 导出</h3>
 
         <div className="export-section">
           <div className="export-label">渲染分辨率</div>
@@ -148,21 +148,21 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
             disabled={exporting !== null}
             onClick={handleExportVideo}
           >
-            {exporting === "video" ? "渲染中..." : "渲染视频 (MP4)"}
+            {exporting === "video" ? "🎬 渲染中..." : "🎬 渲染视频"}
           </button>
           <button
             className="export-action-btn"
             disabled={exporting !== null}
             onClick={handleExportFrame}
           >
-            {exporting === "frame" ? "保存中..." : "截取参考帧 (PNG)"}
+            {exporting === "frame" ? "🖼 保存中..." : "🖼 截取参考帧"}
           </button>
           <button
             className="export-action-btn"
             disabled={exporting !== null}
             onClick={handleExportCameraData}
           >
-            {exporting === "camera" ? "保存中..." : "导出运镜数据 (JSON)"}
+            {exporting === "camera" ? "📐 保存中..." : "📐 导出运镜数据"}
           </button>
         </div>
 
