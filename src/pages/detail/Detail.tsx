@@ -24,6 +24,9 @@ import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import type { FlowNode } from "./nodes/types";
+import { invoke } from "@tauri-apps/api/core";
+import { resolveAssetPath } from "../../lib/assets";
+import type { Generate3DResult, SceneModel } from "../../lib/types";
 import SubtitlePanel from "./subtitle/SubtitlePanel";
 import TitleEditor from "./TitleEditor";
 import EditOverlay from "./EditOverlay";
@@ -98,6 +101,100 @@ export default function Detail() {
         setMenu(null);
         fileInputRef.current?.click();
         break;
+      case "转为3D模型": {
+        if (!menu?.nodeId) break;
+        const node = nodes.find((n) => n.id === menu.nodeId);
+        if (!node || (node.data?.type !== "image" && node.data?.type !== "image-upload")) break;
+        const imagePath = node.data?.assetPath;
+        if (!imagePath) break;
+        setMenu(null);
+
+        // 生成 model_id 用于乐观更新
+        const modelId = `model-${Date.now()}`;
+
+        // 创建导演台节点
+        const directorId = `node-${++nodeIdCounterRef.current}`;
+        const directorNode: FlowNode = {
+          id: directorId,
+          type: "director",
+          position: { x: node.position.x + 200, y: node.position.y },
+          data: {
+            type: "director",
+            content: "",
+            label: "导演台",
+            sourceImageNodeIds: [menu.nodeId],
+            models: [{
+              id: modelId,
+              name: node.data?.content || "未命名",
+              modelPath: "",
+              thumbnailPath: "",
+              transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
+              meta: { vertexCount: 0, faceCount: 0, sourceImageId: menu.nodeId },
+              status: "loading",
+            }],
+            cameraTracks: [{
+              id: "cam_1",
+              name: "主摄像机",
+              enabled: true,
+              keyframes: [
+                { time: 0, fov: 45, position: [0, 1.5, 5], lookAt: [0, 0, 0] },
+                { time: 5, fov: 45, position: [3, 2, 2], lookAt: [0, 0.5, 0] },
+              ],
+              easing: "ease-in-out",
+            }],
+            sceneSettings: {
+              backgroundColor: "#1a1a2e",
+              ambientLight: 0.5,
+              gridVisible: true,
+            },
+          },
+        };
+        setNodes((prev) => [...prev, directorNode]);
+
+        // 连线
+        setEdges((prev) => [
+          ...prev,
+          { id: `edge-${++edgeIdCounterRef.current}`, source: menu.nodeId!, target: directorId },
+        ]);
+
+        // 调用后端 API
+        resolveAssetPath(imagePath).then((imageAbsPath) => {
+          invoke("generate_3d", { imagePath: imageAbsPath, projectId: id! })
+            .then((result) => {
+              const generateResult = result as Generate3DResult;
+              setNodes((prev) =>
+                prev.map((n) => {
+                  if (n.id !== directorId) return n;
+                  const models: SceneModel[] = (n.data as any).models.map((m: SceneModel) =>
+                    m.id === modelId
+                      ? {
+                          ...m,
+                          modelPath: generateResult.modelPath,
+                          thumbnailPath: generateResult.thumbnailPath,
+                          meta: { ...m.meta, vertexCount: generateResult.vertexCount, faceCount: generateResult.faceCount },
+                          status: "ready" as const,
+                        }
+                      : m
+                  );
+                  return { ...n, data: { ...n.data, models } };
+                })
+              );
+            })
+            .catch((err) => {
+              console.error("generate_3d failed:", err);
+              setNodes((prev) =>
+                prev.map((n) => {
+                  if (n.id !== directorId) return n;
+                  const models: SceneModel[] = (n.data as any).models.map((m: SceneModel) =>
+                    m.id === modelId ? { ...m, status: "error" as const } : m
+                  );
+                  return { ...n, data: { ...n.data, models } };
+                })
+              );
+            });
+        });
+        break;
+      }
       case "文本": addNode("text", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y); setMenu(null); break;
       case "图片": addNode("image", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y); setMenu(null); break;
       case "删除": if (menu.nodeId) deleteNode(menu.nodeId); setMenu(null); break;
