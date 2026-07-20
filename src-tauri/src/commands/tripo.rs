@@ -1,9 +1,9 @@
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::AppHandle;
 use tauri::Manager;
 
-const TRIPO_API_URL: &str = "https://api.tripo3d.ai/v2/openapi";
+const TRIPO_BASE: &str = "https://openapi.tripo3d.com/v3";
 
 fn get_api_key() -> Result<String, String> {
     let candidates = vec![
@@ -21,41 +21,6 @@ fn get_api_key() -> Result<String, String> {
         }
     }
     Err("config.json not found or missing tripo_api_key field".to_string())
-}
-
-#[derive(Serialize)]
-struct TripoGenerateRequest {
-    #[serde(rename = "type")]
-    request_type: String,
-    file_url: String,
-    model_version: String,
-}
-
-#[derive(Deserialize)]
-struct TripoGenerateResponse {
-    code: i32,
-    msg: String,
-    data: Option<TripoTaskData>,
-}
-
-#[derive(Deserialize)]
-struct TripoTaskData {
-    task_id: String,
-}
-
-#[derive(Deserialize)]
-struct TripoTaskResponse {
-    code: i32,
-    data: Option<TripoTaskResult>,
-}
-
-#[derive(Deserialize)]
-struct TripoTaskResult {
-    status: String,
-    model_url: Option<String>,
-    thumbnail_url: Option<String>,
-    vertex_count: Option<i64>,
-    face_count: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -82,12 +47,16 @@ async fn ensure_models_dir(app: &AppHandle, project_id: &str) -> Result<PathBuf,
     Ok(models_dir)
 }
 
-async fn download_file(url: &str, dest: &PathBuf) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+fn build_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
         .connect_timeout(std::time::Duration::from_secs(10))
         .build()
-        .map_err(|e| format!("client build failed: {}", e))?;
+        .map_err(|e| format!("client build failed: {}", e))
+}
+
+async fn download_file(url: &str, dest: &PathBuf) -> Result<(), String> {
+    let client = build_client()?;
     let resp = client
         .get(url)
         .send()
@@ -106,58 +75,16 @@ async fn download_file(url: &str, dest: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-async fn poll_task(client: &reqwest::Client, task_id: &str, api_key: &str) -> Result<TripoTaskResult, String> {
-    let url = format!("{}/task/{}", TRIPO_API_URL, task_id);
-    let mut attempts = 0u32;
-    loop {
-        attempts += 1;
-        if attempts > 60 {
-            return Err("poll timeout after 120s".to_string());
-        }
-        let resp = client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
-            .send()
-            .await
-            .map_err(|e| format!("poll failed: {}", e))?;
-        let body: TripoTaskResponse = resp
-            .json()
-            .await
-            .map_err(|e| format!("parse poll response: {}", e))?;
-        if body.code != 0 {
-            return Err(format!("task query error: code={}", body.code));
-        }
-        if let Some(data) = body.data {
-            match data.status.as_str() {
-                "success" => return Ok(data),
-                "failed" | "cancelled" => {
-                    return Err(format!("task status: {}", data.status));
-                }
-                _ => {
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    }
-}
-
 #[tauri::command]
 pub async fn generate_3d(
     app: AppHandle,
     image_path: String,
     project_id: String,
 ) -> Result<Generate3DResult, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("client build failed: {}", e))?;
-
     let api_key = get_api_key()?;
+    let client = build_client()?;
 
-    // Step 1: submit task
+    // Step 1: upload image to get file_token
     let file_bytes = tokio::fs::read(&image_path)
         .await
         .map_err(|e| format!("read image failed: {}", e))?;
@@ -166,55 +93,155 @@ pub async fn generate_3d(
         .mime_str("image/png")
         .map_err(|e| format!("build multipart: {}", e))?;
     let form = reqwest::multipart::Form::new().part("file", part);
-    let submit_resp = client
-        .post(format!("{}/task", TRIPO_API_URL))
+    let upload_resp = client
+        .post(format!("{}/files", TRIPO_BASE))
         .header("Authorization", format!("Bearer {}", &api_key))
         .multipart(form)
         .send()
         .await
-        .map_err(|e| format!("submit failed: {}", e))?;
-    let submit_body: TripoGenerateResponse = submit_resp
+        .map_err(|e| format!("upload failed: {}", e))?;
+    let upload_body: serde_json::Value = upload_resp
         .json()
         .await
-        .map_err(|e| format!("parse submit response: {}", e))?;
-    if submit_body.code != 0 || submit_body.data.is_none() {
-        return Err(format!("submit error: {}", submit_body.msg));
+        .map_err(|e| format!("parse upload response: {}", e))?;
+    if upload_body.get("code").and_then(|v| v.as_i64()) != Some(0) {
+        let msg = upload_body
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("upload error: {}", msg));
     }
-    let task_id = submit_body.data.unwrap().task_id;
+    let file_token = upload_body
+        .pointer("/data/file_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "no file_token in upload response".to_string())?
+        .to_string();
 
-    // Step 2: poll until done
-    let result = poll_task(&client, &task_id, &api_key).await?;
-
-    // Step 3: download model + thumbnail
-    let models_dir = ensure_models_dir(&app, &project_id).await?;
-    let model_id = format!("model_{}", task_id);
-
-    let model_url = result
-        .model_url
-        .ok_or_else(|| "no model url".to_string())?;
-    let model_ext = model_url
-        .rsplit('.')
-        .next()
-        .unwrap_or("glb");
-    let model_filename = format!("{}.{}", model_id, model_ext);
-    let model_path = models_dir.join(&model_filename);
-    download_file(&model_url, &model_path).await?;
-
-    let thumbnail_url = result.thumbnail_url.unwrap_or_default();
-    let thumbnail_filename = format!("{}.png", model_id);
-    let thumbnail_path = models_dir.join(&thumbnail_filename);
-    if !thumbnail_url.is_empty() {
-        download_file(&thumbnail_url, &thumbnail_path).await?;
+    // Step 2: submit generation task
+    let gen_body = serde_json::json!({
+        "file": { "file_token": &file_token },
+        "model": "v3.1-20260211",
+    });
+    let gen_resp = client
+        .post(format!("{}/generation/image-to-model", TRIPO_BASE))
+        .header("Authorization", format!("Bearer {}", &api_key))
+        .header("Content-Type", "application/json")
+        .json(&gen_body)
+        .send()
+        .await
+        .map_err(|e| format!("generate request failed: {}", e))?;
+    let gen_body: serde_json::Value = gen_resp
+        .json()
+        .await
+        .map_err(|e| format!("parse generate response: {}", e))?;
+    if gen_body.get("code").and_then(|v| v.as_i64()) != Some(0) {
+        let msg = gen_body
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("generate error: {}", msg));
     }
+    let task_id = gen_body
+        .pointer("/data/task_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "no task_id in generate response".to_string())?
+        .to_string();
 
-    let model_relative = format!("{}/models/{}", project_id, model_filename);
-    let thumb_relative = format!("{}/models/{}", project_id, thumbnail_filename);
+    // Step 3: poll until done
+    let mut attempts = 0u32;
+    let task_url = format!("{}/generation/{}", TRIPO_BASE, &task_id);
+    loop {
+        attempts += 1;
+        if attempts > 120 {
+            return Err("poll timeout after 120s".to_string());
+        }
+        let poll_resp = client
+            .get(&task_url)
+            .header("Authorization", format!("Bearer {}", &api_key))
+            .send()
+            .await
+            .map_err(|e| format!("poll failed: {}", e))?;
+        let poll_body: serde_json::Value = poll_resp
+            .json()
+            .await
+            .map_err(|e| format!("parse poll response: {}", e))?;
+        if poll_body.get("code").and_then(|v| v.as_i64()) != Some(0) {
+            let msg = poll_body
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(format!("poll error: {}", msg));
+        }
+        let status = poll_body
+            .pointer("/data/status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("processing");
+        match status {
+            "success" | "completed" => {
+                // Step 4: download model
+                let models_dir = ensure_models_dir(&app, &project_id).await?;
+                let model_id = format!("model_{}", &task_id);
 
-    Ok(Generate3DResult {
-        model_id,
-        model_path: model_relative,
-        thumbnail_path: thumb_relative,
-        vertex_count: result.vertex_count.unwrap_or(0),
-        face_count: result.face_count.unwrap_or(0),
-    })
+                let output = poll_body
+                    .get("data")
+                    .and_then(|d| d.get("output"))
+                    .ok_or_else(|| "no output in completed task".to_string())?;
+
+                let model_url = output
+                    .get("model")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| output.get("glb").and_then(|v| v.as_str()))
+                    .or_else(|| output.get("url").and_then(|v| v.as_str()))
+                    .ok_or_else(|| "no model url in output".to_string())?;
+
+                let model_ext = model_url
+                    .rsplit('?')
+                    .next()
+                    .unwrap_or("")
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("glb");
+                let model_filename = format!("{}.{}", model_id, model_ext);
+                let model_path = models_dir.join(&model_filename);
+                download_file(model_url, &model_path).await?;
+
+                let thumbnail_url = output
+                    .get("thumbnail")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let thumb_filename = format!("{}.png", model_id);
+                let thumb_path = models_dir.join(&thumb_filename);
+                if !thumbnail_url.is_empty() {
+                    download_file(thumbnail_url, &thumb_path).await?;
+                }
+
+                let vertex_count = output
+                    .get("vertex_count")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                let face_count = output
+                    .get("face_count")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+
+                let model_relative = format!("{}/models/{}", project_id, model_filename);
+                let thumb_relative = format!("{}/models/{}", project_id, thumb_filename);
+
+                return Ok(Generate3DResult {
+                    model_id,
+                    model_path: model_relative,
+                    thumbnail_path: thumb_relative,
+                    vertex_count,
+                    face_count,
+                });
+            }
+            "failed" | "cancelled" | "error" => {
+                return Err(format!("task status: {}", status));
+            }
+            _ => {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
+        }
+    }
 }
