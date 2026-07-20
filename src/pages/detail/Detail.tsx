@@ -23,6 +23,7 @@ import ImageToolbox from "./ImageToolbox";
 import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
+import DirectorNode from "./nodes/DirectorNode";
 import type { FlowNode } from "./nodes/types";
 import { invoke } from "@tauri-apps/api/core";
 import { resolveAssetPath } from "../../lib/assets";
@@ -39,6 +40,7 @@ const nodeTypes = {
   "image-upload": ImageNode,
   video: VideoNode,
   "video-upload": VideoNode,
+  director: DirectorNode,
 };
 
 export default function Detail() {
