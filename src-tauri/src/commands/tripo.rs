@@ -66,12 +66,19 @@ async fn ensure_models_dir(app: &AppHandle, project_id: &str) -> Result<PathBuf,
 }
 
 async fn download_file(url: &str, dest: &PathBuf) -> Result<(), String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("client build failed: {}", e))?;
     let resp = client
         .get(url)
         .send()
         .await
         .map_err(|e| format!("download failed: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("download returned HTTP {}", resp.status()));
+    }
     let bytes = resp
         .bytes()
         .await
@@ -84,7 +91,12 @@ async fn download_file(url: &str, dest: &PathBuf) -> Result<(), String> {
 
 async fn poll_task(client: &reqwest::Client, task_id: &str) -> Result<TripoTaskResult, String> {
     let url = format!("{}/task/{}", TRIPO_API_URL, task_id);
+    let mut attempts = 0u32;
     loop {
+        attempts += 1;
+        if attempts > 60 {
+            return Err("poll timeout after 120s".to_string());
+        }
         let resp = client
             .get(&url)
             .header("Authorization", format!("Bearer {}", TRIPO_API_KEY))
@@ -120,7 +132,11 @@ pub async fn generate_3d(
     image_path: String,
     project_id: String,
 ) -> Result<Generate3DResult, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("client build failed: {}", e))?;
 
     // Step 1: submit task
     let file_bytes = tokio::fs::read(&image_path)
