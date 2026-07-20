@@ -48,7 +48,7 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = req.result;
       const upgradeTx = req.transaction!;
 
@@ -89,6 +89,26 @@ function openDB(): Promise<IDBDatabase> {
         if (!ss.indexNames.contains("clipId")) {
           ss.createIndex("clipId", "clipId", { unique: false });
         }
+      }
+
+      // -- Backfill clipId on legacy records (migration v4 -> v5) --
+      if (event.oldVersion > 0 && event.oldVersion < 5) {
+        let fallbackClipId = "legacy";
+        try {
+          const clipStore = upgradeTx.objectStore(STORE_CLIPS);
+          const clipCursorReq = clipStore.openCursor();
+          clipCursorReq.onsuccess = () => {
+            const cursor = clipCursorReq.result;
+            if (cursor) {
+              fallbackClipId = cursor.value.id;
+            }
+          };
+        } catch {
+          // No clips store or empty -- use "legacy" sentinel
+        }
+        backfillClipIdInStore(upgradeTx, STORE_NODES, fallbackClipId);
+        backfillClipIdInStore(upgradeTx, STORE_EDGES, fallbackClipId);
+        backfillClipIdInStore(upgradeTx, STORE_SUBTITLES, fallbackClipId);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -151,6 +171,58 @@ function deleteRecordsByIndex(
   });
 }
 
+/**
+ * Backfill clipId on legacy records that lack the field.
+ * Called during the v4 -> v5 schema migration in onupgradeneeded.
+ * The upgrade transaction stays alive until onupgradeneeded returns,
+ * so cursor operations queued here complete before the handler exits.
+ */
+function backfillClipIdInStore(
+  tx: IDBTransaction,
+  storeName: string,
+  fallbackClipId: string,
+): void {
+  const store = tx.objectStore(storeName);
+  const cursorReq = store.openCursor();
+  cursorReq.onsuccess = () => {
+    const cursor = cursorReq.result;
+    if (cursor) {
+      const record = cursor.value as Record<string, unknown>;
+      if (!record.clipId) {
+        record.clipId = fallbackClipId;
+        cursor.update(record);
+      }
+      cursor.continue();
+    }
+  };
+}
+
+/**
+ * Assign clipId to any legacy records that lack the field.
+ * Intended to run inside an active readwrite transaction so the caller can
+ * subsequently operate on those records (update or delete) by clipId index.
+ * Requests are queued FIFO within a transaction, so this cursor completes
+ * before any cursor opened after it.
+ */
+function assignClipIdToLegacyRecords(
+  store: IDBObjectStore,
+  _indexName: string,
+  clipId: string,
+): void {
+  const req = store.openCursor();
+  req.onsuccess = () => {
+    const cursor = req.result;
+    if (cursor) {
+      const record = cursor.value as Record<string, unknown>;
+      if (!record.clipId) {
+        record.clipId = clipId;
+        cursor.update(record);
+      }
+      cursor.continue();
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Canvas (per-clip isolation via clipId field)
 // ---------------------------------------------------------------------------
@@ -170,6 +242,10 @@ export async function saveCanvas(
   // Precisely delete this clip's old nodes and edges via the clipId index
   await deleteRecordsByIndex(nodeStore, "clipId", clipId);
   await deleteRecordsByIndex(edgeStore, "clipId", clipId);
+
+  // Assign clipId to any legacy records that lack it (backward compat)
+  assignClipIdToLegacyRecords(nodeStore, "clipId", clipId);
+  assignClipIdToLegacyRecords(edgeStore, "clipId", clipId);
 
   // Tag new records with clipId, strip DOM refs
   const cleanNodes: CanvasNodeRecord[] = nodes.map((n) => {
@@ -207,6 +283,22 @@ export async function saveCanvas(
   });
 }
 
+function storeGetAllByIndex<T>(
+  db: IDBDatabase,
+  storeName: string,
+  indexName: string,
+  key: string,
+): Promise<T[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const store = tx.objectStore(storeName);
+    const index = store.index(indexName);
+    const req = index.getAll(IDBKeyRange.only(key));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function loadCanvas(clipId: string): Promise<{
   nodes: Node[];
   edges: Edge[];
@@ -214,14 +306,12 @@ export async function loadCanvas(clipId: string): Promise<{
   if (!clipId) return { nodes: [], edges: [] };
 
   const db = await getDB();
-  const rawNodes = await storeGetAll<CanvasNodeRecord>(db, STORE_NODES);
-  const rawEdges = await storeGetAll<CanvasEdgeRecord>(db, STORE_EDGES);
+  const [rawNodes, rawEdges] = await Promise.all([
+    storeGetAllByIndex<CanvasNodeRecord>(db, STORE_NODES, "clipId", clipId),
+    storeGetAllByIndex<CanvasEdgeRecord>(db, STORE_EDGES, "clipId", clipId),
+  ]);
 
-  // Filter by clipId; also ignore legacy records that have no clipId field
-  const clipNodes = rawNodes.filter((n) => n.clipId && n.clipId === clipId);
-  const clipEdges = rawEdges.filter((e) => e.clipId && e.clipId === clipId);
-
-  const nodes: Node[] = clipNodes.map((n) => ({
+  const nodes: Node[] = rawNodes.map((n) => ({
     id: n.id,
     type: n.type || "text",
     position: n.position || { x: 0, y: 0 },
@@ -232,7 +322,7 @@ export async function loadCanvas(clipId: string): Promise<{
     dragging: false,
   }));
 
-  const edges: Edge[] = clipEdges.map((e) => ({
+  const edges: Edge[] = rawEdges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
@@ -251,6 +341,11 @@ export async function clearCanvas(clipId: string) {
   const nodeStore = tx.objectStore(STORE_NODES);
   const edgeStore = tx.objectStore(STORE_EDGES);
   const subStore = tx.objectStore(STORE_SUBTITLES);
+
+  // Assign clipId to legacy records first so they get picked up by the delete pass
+  assignClipIdToLegacyRecords(nodeStore, "clipId", clipId);
+  assignClipIdToLegacyRecords(edgeStore, "clipId", clipId);
+  assignClipIdToLegacyRecords(subStore, "clipId", clipId);
 
   await deleteRecordsByIndex(nodeStore, "clipId", clipId);
   await deleteRecordsByIndex(edgeStore, "clipId", clipId);

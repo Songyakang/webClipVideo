@@ -1,3 +1,5 @@
+import styles from "./Detail.module.css";
+
 interface EdgeDeleteInfo {
   id: string;
   x: number;
@@ -15,7 +17,7 @@ export default function EdgeDeleteButton({ edgeToDelete, onDelete, onDismiss }: 
 
   return (
     <div
-      className="scissors-btn"
+      className={styles["scissors-btn"]}
       style={{ left: edgeToDelete.x - 20, top: edgeToDelete.y - 20 }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={() => { onDelete(edgeToDelete.id); onDismiss(); }}

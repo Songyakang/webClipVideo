@@ -1,12 +1,12 @@
 import { useCallback, type MutableRefObject } from "react";
-import { addEdge as rfAddEdge, type Connection } from "@xyflow/react";
+import { addEdge as rfAddEdge, type Connection, type Edge } from "@xyflow/react";
 import { deleteAssetDir } from "../../../lib/assets";
 import type { FlowNode } from "../nodes/types";
 
 export function useNodeOperations(
   projectId: string,
   setNodes: React.Dispatch<React.SetStateAction<FlowNode[]>>,
-  setEdges: React.Dispatch<React.SetStateAction<any[]>>,
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>,
   setSelectedNode: (n: FlowNode | null) => void,
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
@@ -15,7 +15,7 @@ export function useNodeOperations(
     const isMedia = type === "image-upload" || type === "video-upload";
     const id = `node-${++nodeIdCounterRef.current}`;
     const newNode: FlowNode = {
-      id, type: type as any, position: { x, y },
+      id, type: type as FlowNode["type"], position: { x, y },
       data: { type, content: "", fileUrl: fileUrl || "", w: isMedia ? undefined : 700, h: isMedia ? undefined : 400 },
     };
     setNodes((prev) => [...prev, newNode]);
@@ -24,7 +24,7 @@ export function useNodeOperations(
 
   const deleteNode = useCallback((nodeId: string) => {
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
-    setEdges((prev) => prev.filter((e: any) => e.source !== nodeId && e.target !== nodeId));
+    setEdges((prev) => prev.filter((e: Edge) => e.source !== nodeId && e.target !== nodeId));
     setSelectedNode(null);
     deleteAssetDir(projectId, nodeId);
   }, [projectId, setNodes, setEdges, setSelectedNode]);
@@ -47,7 +47,7 @@ export function useNodeOperations(
   }, [setEdges, edgeIdCounterRef]);
 
   const removeEdge = useCallback((edgeId: string) => {
-    setEdges((prev) => prev.filter((e: any) => e.id !== edgeId));
+    setEdges((prev) => prev.filter((e: Edge) => e.id !== edgeId));
   }, [setEdges]);
 
   return { addNode, deleteNode, duplicateNode, addEdge, removeEdge };

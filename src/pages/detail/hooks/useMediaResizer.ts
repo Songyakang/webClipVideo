@@ -1,9 +1,10 @@
 import { useCallback } from "react";
+import type { FlowNode } from "../nodes/types";
 
 const MAX_W = 700;
 
 export function useMediaResizer(
-  setNodes: React.Dispatch<React.SetStateAction<any[]>>,
+  setNodes: React.Dispatch<React.SetStateAction<FlowNode[]>>,
 ) {
   const resizeMediaNode = useCallback((nodeId: string, type: string, url: string) => {
     if (type === "video-upload") {

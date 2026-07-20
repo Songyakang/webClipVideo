@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 
+/* Minimal WebGPU type declarations — avoids `any` without requiring @webgpu/types */
+interface MinimalGPU {
+  requestAdapter(): Promise<MinimalGPUAdapter | null>;
+}
+interface MinimalGPUAdapter {
+  readonly info: Record<string, unknown>;
+}
+
 interface WebGPUCheckResult {
   supported: boolean;
   adapterInfo?: string;
@@ -40,7 +48,7 @@ export default function WebGPUCheck({ children }: { children: React.ReactNode })
 
 async function checkWebGPU(): Promise<WebGPUCheckResult> {
   try {
-    const gpu = (navigator as any).gpu;
+    const gpu = (navigator as Navigator & { gpu?: MinimalGPU }).gpu;
     if (!gpu) {
       return { supported: false, error: "navigator.gpu 未定义 — 浏览器不支持 WebGPU。" };
     }
@@ -55,7 +63,7 @@ async function checkWebGPU(): Promise<WebGPUCheckResult> {
   }
 }
 
-function adapterInfoString(adapter: any): string {
+function adapterInfoString(adapter: MinimalGPUAdapter): string {
   try {
     const info = adapter.info;
     if (info && typeof info === "object") {
