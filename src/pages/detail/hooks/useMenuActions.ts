@@ -1,0 +1,65 @@
+import { useCallback } from "react";
+import type { FlowNode } from "../nodes/types";
+import type { MenuState } from "./useContextMenu";
+
+export function useMenuActions(
+  menu: MenuState | null,
+  setMenu: (menu: MenuState | null) => void,
+  nodes: FlowNode[],
+  addNode: (type: string, x: number, y: number, fileUrl?: string) => string,
+  deleteNode: (nodeId: string) => void,
+  duplicateNode: (nodeId: string) => void,
+  screenToFlow: (sx: number, sy: number) => { x: number; y: number },
+  generate3DFromImage: (imageNode: FlowNode) => void,
+  uploadPosRef: React.MutableRefObject<{ x: number; y: number }>,
+  fileInputRef: React.RefObject<HTMLInputElement | null>,
+) {
+  const handleMenuAction = useCallback((action: string) => {
+    if (!menu) return;
+    switch (action) {
+      case "添加节点":
+        setMenu({ ...menu, type: "addNode" });
+        return;
+      case "上传":
+        uploadPosRef.current = screenToFlow(menu.x, menu.y);
+        setMenu(null);
+        fileInputRef.current?.click();
+        break;
+      case "转为3D模型": {
+        if (!menu?.nodeId) break;
+        const node = nodes.find((n) => n.id === menu.nodeId);
+        if (!node || (node.data?.type !== "image" && node.data?.type !== "image-upload")) break;
+        if (!node.data?.assetPath) break;
+        setMenu(null);
+        generate3DFromImage(node);
+        break;
+      }
+      case "文本":
+        addNode("text", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
+        setMenu(null);
+        break;
+      case "图片":
+        addNode("image", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
+        setMenu(null);
+        break;
+      case "删除":
+        if (menu.nodeId) deleteNode(menu.nodeId);
+        setMenu(null);
+        break;
+      case "复制节点":
+      case "创建副本":
+        if (menu.nodeId) duplicateNode(menu.nodeId);
+        setMenu(null);
+        break;
+      default:
+        setMenu(null);
+    }
+  }, [
+    menu, setMenu, nodes,
+    addNode, deleteNode, duplicateNode,
+    screenToFlow, generate3DFromImage,
+    uploadPosRef, fileInputRef,
+  ]);
+
+  return { handleMenuAction };
+}

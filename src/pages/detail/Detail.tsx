@@ -20,21 +20,20 @@ import { useContextMenu } from "./hooks/useContextMenu";
 import { useNodeOperations } from "./hooks/useNodeOperations";
 import { useFileUpload } from "./hooks/useFileUpload";
 import { useMediaResizer } from "./hooks/useMediaResizer";
+import { useGenerate3D } from "./hooks/useGenerate3D";
+import { useMenuActions } from "./hooks/useMenuActions";
 import ContextMenus from "./ContextMenus";
 import ImageToolbox from "./ImageToolbox";
 import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import DirectorNode from "./nodes/DirectorNode";
-import type { FlowNode, NodeData } from "./nodes/types";
-import { invoke } from "@tauri-apps/api/core";
-import { resolveAssetPath } from "../../lib/assets";
-import type { Generate3DResult, SceneModel } from "../../lib/types";
-import SubtitlePanel from "./subtitle/SubtitlePanel";
+import type { FlowNode } from "./nodes/types";
+import SubtitleOverlay from "./SubtitleOverlay";
+import DirectorOverlay from "./DirectorOverlay";
+import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
 import EditOverlay from "./EditOverlay";
-import DirectorView from "./director/DirectorView";
-import type { DirectorNodeData } from "../../lib/types";
 import "./Detail.css";
 import "./nodes/nodes.css";
 
@@ -91,6 +90,15 @@ export default function Detail() {
 
   const { fileInputRef, uploadPosRef, handleFileChange } = useFileUpload(id!, addNode, setNodes, resizeMediaNode);
 
+  const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
+
+  const { handleMenuAction } = useMenuActions(
+    menu, setMenu, nodes,
+    addNode, deleteNode, duplicateNode,
+    screenToFlow, generate3DFromImage,
+    uploadPosRef, fileInputRef,
+  );
+
   useKeyboardShortcuts({
     editingNodeId, edgeToDelete, selectedNode,
     setMenu, setEditingNodeId, setEdgeToDelete,
@@ -98,133 +106,6 @@ export default function Detail() {
   });
 
   useCanvasPersistence(id!, nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
-
-  const handleMenuAction = useCallback((action: string) => {
-    if (!menu) return;
-    switch (action) {
-      case "添加节点": setMenu({ ...menu, type: "addNode" }); return;
-      case "上传":
-        uploadPosRef.current = screenToFlow(menu.x, menu.y);
-        setMenu(null);
-        fileInputRef.current?.click();
-        break;
-      case "转为3D模型": {
-        if (!menu?.nodeId) break;
-        const node = nodes.find((n) => n.id === menu.nodeId);
-        if (!node || (node.data?.type !== "image" && node.data?.type !== "image-upload")) break;
-        const imagePath = node.data?.assetPath;
-        if (!imagePath) break;
-        setMenu(null);
-
-        // 生成 model_id 用于乐观更新
-        const modelId = `model-${Date.now()}`;
-
-        // 创建导演台节点
-        const directorId = `node-${++nodeIdCounterRef.current}`;
-        const directorNode: FlowNode = {
-          id: directorId,
-          type: "director",
-          position: { x: node.position.x + 200, y: node.position.y },
-          data: {
-            type: "director",
-            content: "",
-            label: "导演台",
-            sourceImageNodeIds: [menu.nodeId],
-            models: [{
-              id: modelId,
-              name: node.data?.content || "未命名",
-              modelPath: "",
-              thumbnailPath: "",
-              transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
-              meta: { vertexCount: 0, faceCount: 0, sourceImageId: menu.nodeId },
-              status: "loading",
-            }],
-            cameraTracks: [{
-              id: "cam_1",
-              name: "主摄像机",
-              enabled: true,
-              keyframes: [
-                { time: 0, fov: 45, position: [0, 1.5, 5], lookAt: [0, 0, 0] },
-                { time: 5, fov: 45, position: [3, 2, 2], lookAt: [0, 0.5, 0] },
-              ],
-              easing: "ease-in-out",
-            }],
-            sceneSettings: {
-              backgroundColor: "#1a1a2e",
-              ambientLight: 0.5,
-              gridVisible: true,
-            },
-          },
-        };
-        setNodes((prev) => [...prev, directorNode]);
-
-        // 连线
-        setEdges((prev) => [
-          ...prev,
-          { id: `edge-${++edgeIdCounterRef.current}`, source: menu.nodeId!, target: directorId },
-        ]);
-
-        // 调用后端 API
-        resolveAssetPath(imagePath)
-          .then((imageAbsPath) => {
-            if (!imageAbsPath) {
-              console.error("resolveAssetPath returned empty for:", imagePath);
-              return;
-            }
-            invoke<Generate3DResult>("generate_3d", { imagePath: imageAbsPath, projectId: id! })
-              .then((generateResult) => {
-              setNodes((prev) =>
-                prev.map((n) => {
-                  if (n.id !== directorId) return n;
-                  const models: SceneModel[] = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
-                    m.id === modelId
-                      ? {
-                          ...m,
-                          modelPath: generateResult.modelPath,
-                          thumbnailPath: generateResult.thumbnailPath,
-                          meta: { ...m.meta, vertexCount: generateResult.vertexCount, faceCount: generateResult.faceCount },
-                          status: "ready" as const,
-                        }
-                      : m
-                  );
-                  return { ...n, data: { ...n.data, models } };
-                })
-              );
-            })
-            .catch((err) => {
-              console.error("generate_3d failed:", err);
-              setNodes((prev) =>
-                prev.map((n) => {
-                  if (n.id !== directorId) return n;
-                  const models: SceneModel[] = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
-                    m.id === modelId ? { ...m, status: "error" as const } : m
-                  );
-                  return { ...n, data: { ...n.data, models } };
-                })
-              );
-            });
-        })
-        .catch((err) => {
-          console.error("resolveAssetPath failed:", err);
-          setNodes((prev) =>
-            prev.map((n) => {
-              if (n.id !== directorId) return n;
-              const models = (n.data as unknown as DirectorNodeData).models.map((m: SceneModel) =>
-                m.id === modelId ? { ...m, status: "error" as const } : m
-              );
-              return { ...n, data: { ...n.data, models } };
-            })
-          );
-        });
-        break;
-      }
-      case "文本": addNode("text", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y); setMenu(null); break;
-      case "图片": addNode("image", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y); setMenu(null); break;
-      case "删除": if (menu.nodeId) deleteNode(menu.nodeId); setMenu(null); break;
-      case "复制节点": case "创建副本": if (menu.nodeId) duplicateNode(menu.nodeId); setMenu(null); break;
-      default: setMenu(null);
-    }
-  }, [menu, addNode, deleteNode, duplicateNode, screenToFlow]);
 
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
@@ -250,6 +131,7 @@ export default function Detail() {
       ? selectedNode
       : null;
   const editNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
+
   return (
     <div className="canvas-container" ref={containerRef}>
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
@@ -308,67 +190,40 @@ export default function Detail() {
         </button>
       )}
 
-      {showSubtitles && selectedVideoNode && (
-        <SubtitlePanel
-          nodeId={selectedVideoNode.id}
-          videoEl={
-            document.querySelector(
-              `.react-flow__node[data-id="${selectedVideoNode.id}"] video`
-            ) as HTMLVideoElement | null
-          }
-          videoAssetPath={selectedVideoNode.data?.assetPath}
-          projectId={id!}
-          onClose={() => setShowSubtitles(false)}
-        />
-      )}
+      <SubtitleOverlay
+        showSubtitles={showSubtitles}
+        selectedVideoNode={selectedVideoNode}
+        projectId={id!}
+        onClose={() => setShowSubtitles(false)}
+      />
 
       <TitleEditor clip={clip} onUpdate={setClip} />
 
-      {/* Toolbox */}
       {showToolbox && (
         <ImageToolbox style={{ position: "fixed", left: "50%", bottom: 16, transform: "translateX(-50%)" }} />
       )}
 
-      {/* Edit textarea */}
       {editNode && (
         <EditOverlay node={editNode} onCommit={commitEdit} rfInstance={rfInstance} />
       )}
 
-      {/* Scissors */}
-      {edgeToDelete && (
-        <div className="scissors-btn" style={{ left: edgeToDelete.x - 20, top: edgeToDelete.y - 20 }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" />
-          </svg>
-        </div>
+      <EdgeDeleteButton
+        edgeToDelete={edgeToDelete}
+        onDelete={removeEdge}
+        onDismiss={() => setEdgeToDelete(null)}
+      />
+
+      {directorNodeId && (
+        <DirectorOverlay
+          directorNodeId={directorNodeId}
+          nodes={nodes}
+          projectId={id!}
+          setNodes={setNodes}
+          onClose={() => setDirectorNodeId(null)}
+        />
       )}
 
-      {/* Director View Overlay */}
-      {directorNodeId && (() => {
-        const dirNode = nodes.find((n) => n.id === directorNodeId);
-        if (!dirNode) return null;
-        return (
-          <DirectorView
-            data={dirNode.data as unknown as DirectorNodeData}
-            projectId={id!}
-            onClose={() => setDirectorNodeId(null)}
-            onUpdate={(newData) => {
-              setNodes((prev) =>
-                prev.map((n) =>
-                  n.id === directorNodeId
-                    ? { ...n, data: newData as unknown as NodeData }
-                    : n
-                ) as FlowNode[]
-              );
-            }}
-          />
-        );
-      })()}
-
       {menu && <ContextMenus menu={menu} onAction={handleMenuAction} />}
-
     </div>
   );
 }
