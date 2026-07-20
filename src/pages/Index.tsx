@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { VideoClip } from "../lib/types";
 import { getAllClips, addClip, deleteClip, searchClips } from "../lib/store";
-import "./Index.css";
+import styles from "./Index.module.css";
 
 export default function Index() {
   const navigate = useNavigate();
@@ -48,8 +48,8 @@ export default function Index() {
   };
 
   return (
-    <div className="index-page">
-      <div className="search-bar">
+    <div className={styles["index-page"]}>
+      <div className={styles["search-bar"]}>
         <input
           type="text"
           placeholder="搜索标题、描述或标签..."
@@ -57,34 +57,34 @@ export default function Index() {
           onChange={(e) => handleSearch(e.target.value)}
         />
         {query && (
-          <button className="btn-clear" onClick={() => handleSearch("")}>
+          <button className={styles["btn-clear"]} onClick={() => handleSearch("")}>
             清除
           </button>
         )}
       </div>
 
-      <div className="card-grid">
-        <div className="clip-card add-card" onClick={handleAdd}>
-          <div className="card-thumb add-thumb">
-            <span className="add-icon">+</span>
+      <div className={styles["card-grid"]}>
+        <div className={`${styles["clip-card"]} ${styles["add-card"]}`} onClick={handleAdd}>
+          <div className={`${styles["card-thumb"]} ${styles["add-thumb"]}`}>
+            <span className={styles["add-icon"]}>+</span>
           </div>
-          <div className="card-body">
-            <h3 className="card-title">新增片段</h3>
-            <p className="card-desc">添加新的素材到你的收藏</p>
+          <div className={styles["card-body"]}>
+            <h3 className={styles["card-title"]}>新增片段</h3>
+            <p className={styles["card-desc"]}>添加新的素材到你的收藏</p>
           </div>
         </div>
 
         {clips.map((clip) => (
           <div
             key={clip.id}
-            className="clip-card"
+            className={styles["clip-card"]}
             onClick={() => navigate(`/detail/${clip.id}`)}
           >
-            <div className="card-thumb">
+            <div className={styles["card-thumb"]}>
               {clip.thumbnail ? (
                 <img src={clip.thumbnail} alt={clip.title} />
               ) : (
-                <div className="thumb-placeholder">
+                <div className={styles["thumb-placeholder"]}>
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                     <circle cx="8.5" cy="8.5" r="1.5" />
@@ -93,27 +93,27 @@ export default function Index() {
                 </div>
               )}
               {clip.duration > 0 && (
-                <span className="card-duration">
+                <span className={styles["card-duration"]}>
                   {formatDuration(clip.duration)}
                 </span>
               )}
             </div>
-            <div className="card-body">
-              <h3 className="card-title">{clip.title}</h3>
-              <p className="card-desc">
+            <div className={styles["card-body"]}>
+              <h3 className={styles["card-title"]}>{clip.title}</h3>
+              <p className={styles["card-desc"]}>
                 {clip.description || "暂无描述"}
               </p>
-              <div className="card-tags">
+              <div className={styles["card-tags"]}>
                 {clip.tags.map((t) => (
                   <span key={t} className="tag">
                     {t}
                   </span>
                 ))}
               </div>
-              <div className="card-footer">
-                <span className="card-date">{formatDate(clip.createdAt)}</span>
+              <div className={styles["card-footer"]}>
+                <span className={styles["card-date"]}>{formatDate(clip.createdAt)}</span>
                 <button
-                  className="btn-delete"
+                  className={styles["btn-delete"]}
                   onClick={(e) => {
                     e.stopPropagation();
                     setConfirmDeleteId(clip.id);

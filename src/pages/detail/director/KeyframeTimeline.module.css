@@ -26,7 +26,7 @@
   cursor: pointer;
 }
 
-.kf-track-label.active {
+.kf-track-label:global(.active) {
   background: #1a1a2e;
   color: #e0e0e0;
 }

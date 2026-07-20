@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { VideoClip, SubtitleTrack } from "./types";
+import { showToast } from "./toast";
 
 const DB_NAME = "video-clip-editor";
 const DB_VERSION = 5;
@@ -91,7 +92,10 @@ function openDB(): Promise<IDBDatabase> {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      showToast("数据库连接失败，请刷新页面", "error");
+      reject(req.error);
+    };
   });
 }
 
@@ -195,7 +199,11 @@ export async function saveCanvas(
 
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => {
+      console.error("IndexedDB saveCanvas failed:", tx.error);
+      showToast("保存画布数据失败", "error");
+      reject(tx.error);
+    };
   });
 }
 
@@ -250,7 +258,11 @@ export async function clearCanvas(clipId: string) {
 
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => {
+      console.error("IndexedDB clearCanvas failed:", tx.error);
+      showToast("清理画布数据失败", "error");
+      reject(tx.error);
+    };
   });
 }
 
@@ -271,7 +283,10 @@ export async function getClipById(id: string): Promise<VideoClip | undefined> {
   const clip = await new Promise<VideoClip | undefined>((resolve, reject) => {
     const req = store.get(id);
     req.onsuccess = () => resolve(req.result ?? undefined);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      showToast("读取数据失败", "error");
+      reject(req.error);
+    };
   });
   return clip;
 }
@@ -287,7 +302,11 @@ export async function addClip(data: Omit<VideoClip, "id" | "createdAt">): Promis
     const tx = db.transaction(STORE_CLIPS, "readwrite");
     const req = tx.objectStore(STORE_CLIPS).put(clip);
     req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      console.error("IndexedDB addClip failed:", req.error);
+      showToast("保存失败，请检查磁盘空间", "error");
+      reject(req.error);
+    };
     tx.oncomplete = () => resolve();
   });
   return clip;
@@ -310,7 +329,10 @@ export async function updateClip(
   await new Promise<void>((resolve, reject) => {
     const req = store.put(updated);
     req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      showToast("更新失败，请重试", "error");
+      reject(req.error);
+    };
   });
   return updated;
 }
@@ -328,7 +350,11 @@ export async function deleteClip(id: string): Promise<boolean> {
   store.delete(id);
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => {
+      console.error("IndexedDB deleteClip failed:", tx.error);
+      showToast("删除失败，请稍后重试", "error");
+      reject(tx.error);
+    };
   });
   return true;
 }

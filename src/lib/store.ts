@@ -1,4 +1,5 @@
 import type { VideoClip, SubtitleTrack } from "./types";
+import { showToast } from "./toast";
 import { deleteProjectAssets } from "./assets";
 import {
   getAllClips as dbGetAll,
@@ -31,8 +32,14 @@ export async function deleteClip(id: string): Promise<boolean> {
   if (!ok) return false;
 
   // Cascade cleanup (non-blocking): canvas + subtitles + asset files
-  dbClearCanvas(id).catch((e) => console.error("clearCanvas failed:", e));
-  deleteProjectAssets(id).catch((e) => console.error("deleteProjectAssets failed:", e));
+  dbClearCanvas(id).catch((e) => {
+    console.error("clearCanvas failed:", e);
+    showToast("清理画布数据失败", "error");
+  });
+  deleteProjectAssets(id).catch((e) => {
+    console.error("deleteProjectAssets failed:", e);
+    showToast("删除项目资源失败", "error");
+  });
 
   return true;
 }

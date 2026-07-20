@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import "./ImageToolbox.css";
+import styles from "./ImageToolbox.module.css";
 
 interface Props {
   style: React.CSSProperties;
@@ -15,27 +15,27 @@ const ChevronDown = () => (
 export default function ImageToolbox({ style }: Props) {
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="image-toolbox" style={style} onMouseDown={(e) => e.stopPropagation()}>
+      <div className={styles["image-toolbox"]} style={style} onMouseDown={(e) => e.stopPropagation()}>
 
         {/* Section 1 */}
-        <div className="toolbox-row">
+        <div className={styles["toolbox-row"]}>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">风格</button>
+              <button className={styles["toolbox-btn"]}>风格</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">选择图像风格预设</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">标记</button>
+              <button className={styles["toolbox-btn"]}>标记</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">为图像添加标记</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">参考</button>
+              <button className={styles["toolbox-btn"]}>参考</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">上传参考图像</Tooltip.Content>
           </Tooltip.Root>
@@ -43,15 +43,15 @@ export default function ImageToolbox({ style }: Props) {
 
         {/* Section 2 - Prompt textarea */}
         <textarea
-          className="toolbox-prompt"
+          className={styles["toolbox-prompt"]}
           placeholder="可直接文字生图, 或上传图片输入文字指令对图片进行编辑, 如: 将背景改为雪夜"
           rows={3}
         />
 
         {/* Section 3 */}
-        <div className="toolbox-row">
+        <div className={styles["toolbox-row"]}>
           <Select.Root defaultValue="sd">
-            <Select.Trigger className="toolbox-select">
+            <Select.Trigger className={styles["toolbox-select"]}>
               <Select.Value />
               <Select.Icon><ChevronDown /></Select.Icon>
             </Select.Trigger>
@@ -77,40 +77,40 @@ export default function ImageToolbox({ style }: Props) {
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">画质</button>
+              <button className={styles["toolbox-btn"]}>画质</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">设置输出画质</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">预设</button>
+              <button className={styles["toolbox-btn"]}>预设</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">选择预设参数</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">摄像机</button>
+              <button className={styles["toolbox-btn"]}>摄像机</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">设置摄像机角度</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">翻译</button>
+              <button className={styles["toolbox-btn"]}>翻译</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">翻译提示词</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">图片数量</button>
+              <button className={styles["toolbox-btn"]}>图片数量</button>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">设置生成数量</Tooltip.Content>
           </Tooltip.Root>
 
-          <button className="toolbox-btn primary">提交</button>
+          <button className={`${styles["toolbox-btn"]} primary`}>提交</button>
         </div>
 
       </div>

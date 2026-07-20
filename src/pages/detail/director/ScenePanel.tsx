@@ -1,5 +1,5 @@
 import type { SceneModel, CameraTrack } from "./types";
-import "./ScenePanel.css";
+import styles from "./ScenePanel.module.css";
 
 interface Props {
   models: SceneModel[];
@@ -21,31 +21,31 @@ export default function ScenePanel({
   onModelTransformUpdate,
 }: Props) {
   return (
-    <div className="scene-panel">
+    <div className={styles["scene-panel"]}>
       {/* Models section */}
       <div className="sp-section">
-        <div className="sp-section-title">📦 场景模型</div>
+        <div className={styles["sp-section-title"]}>📦 场景模型</div>
         {models.length === 0 && (
-          <div className="sp-empty">暂无模型</div>
+          <div className={styles["sp-empty"]}>暂无模型</div>
         )}
         {models.map((model) => (
           <div
             key={model.id}
-            className={`sp-model-item${model.id === activeModelId ? " active" : ""}`}
+            className={`${styles["sp-model-item"]}${model.id === activeModelId ? " active" : ""}`}
             onClick={() => onModelSelect(model.id)}
           >
-            <div className="sp-model-name">
+            <div className={styles["sp-model-name"]}>
               <span
-                className={`sp-model-status ${model.status}`}
+                className={`${styles["sp-model-status"]} ${model.status}`}
                 title={model.status}
               />
               {model.name}
             </div>
-            <div className="sp-model-meta">
+            <div className={styles["sp-model-meta"]}>
               顶点: {formatNumber(model.meta.vertexCount)} | 面: {formatNumber(model.meta.faceCount)}
             </div>
             {model.status === "loading" && (
-              <div className="sp-model-loading">生成中...</div>
+              <div className={styles["sp-model-loading"]}>生成中...</div>
             )}
           </div>
         ))}
@@ -54,16 +54,16 @@ export default function ScenePanel({
       {/* Transform section */}
       {activeModelId && models.find((m) => m.id === activeModelId) && (
         <div className="sp-section">
-          <div className="sp-section-title">📐 变换</div>
+          <div className={styles["sp-section-title"]}>📐 变换</div>
           {(() => {
             const m = models.find((m2) => m2.id === activeModelId)!;
             return (
-              <div className="sp-transform-grid">
-                <span className="sp-axis x">X</span>
+              <div className={styles["sp-transform-grid"]}>
+                <span className={`${styles["sp-axis"]} x`}>X</span>
                 <input
                   type="number"
                   step="0.1"
-                  className="sp-value-input"
+                  className={styles["sp-value-input"]}
                   value={m.transform.position[0]}
                   onChange={(e) => {
                     const pos: [number, number, number] = [...m.transform.position];
@@ -71,11 +71,11 @@ export default function ScenePanel({
                     onModelTransformUpdate(m.id, { ...m.transform, position: pos });
                   }}
                 />
-                <span className="sp-axis y">Y</span>
+                <span className={`${styles["sp-axis"]} y`}>Y</span>
                 <input
                   type="number"
                   step="0.1"
-                  className="sp-value-input"
+                  className={styles["sp-value-input"]}
                   value={m.transform.position[1]}
                   onChange={(e) => {
                     const pos: [number, number, number] = [...m.transform.position];
@@ -83,11 +83,11 @@ export default function ScenePanel({
                     onModelTransformUpdate(m.id, { ...m.transform, position: pos });
                   }}
                 />
-                <span className="sp-axis z">Z</span>
+                <span className={`${styles["sp-axis"]} z`}>Z</span>
                 <input
                   type="number"
                   step="0.1"
-                  className="sp-value-input"
+                  className={styles["sp-value-input"]}
                   value={m.transform.position[2]}
                   onChange={(e) => {
                     const pos: [number, number, number] = [...m.transform.position];
@@ -95,15 +95,15 @@ export default function ScenePanel({
                     onModelTransformUpdate(m.id, { ...m.transform, position: pos });
                   }}
                 />
-                <span className="sp-axis">R</span>
-                <span className="sp-value">
+                <span className={styles["sp-axis"]}>R</span>
+                <span className={styles["sp-value"]}>
                   {m.transform.rotation[0]}° / {m.transform.rotation[1]}° / {m.transform.rotation[2]}°
                 </span>
-                <span className="sp-axis">S</span>
+                <span className={styles["sp-axis"]}>S</span>
                 <input
                   type="number"
                   step="0.1"
-                  className="sp-value-input"
+                  className={styles["sp-value-input"]}
                   value={m.transform.scale}
                   onChange={(e) => {
                     onModelTransformUpdate(m.id, { ...m.transform, scale: parseFloat(e.target.value) || 1 });
@@ -117,15 +117,15 @@ export default function ScenePanel({
 
       {/* Camera section */}
       <div className="sp-section">
-        <div className="sp-section-title">🎥 摄像机</div>
+        <div className={styles["sp-section-title"]}>🎥 摄像机</div>
         {cameraTracks.map((track) => (
           <div
             key={track.id}
-            className={`sp-camera-item${track.id === activeCameraId ? " active" : ""}`}
+            className={`${styles["sp-camera-item"]}${track.id === activeCameraId ? " active" : ""}`}
             onClick={() => onActiveCameraChange(track.id)}
           >
             <span
-              className="sp-camera-dot"
+              className={styles["sp-camera-dot"]}
               style={{ background: track.enabled ? "#4ade80" : "#555" }}
             />
             {track.name}

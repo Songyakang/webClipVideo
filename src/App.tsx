@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Detail from "./pages/detail/Detail";
+import Toast from "./components/Toast";
 import "./App.css";
 
 export default function App() {
@@ -10,6 +11,7 @@ export default function App() {
         <Route path="/" element={<Index />} />
         <Route path="/detail/:id" element={<Detail />} />
       </Routes>
+      <Toast />
     </BrowserRouter>
   );
 }

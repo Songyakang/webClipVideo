@@ -1,5 +1,7 @@
-/* Node base */
-.flow-node {
+/* All classes are global because they are used by multiple node components */
+/* (TextNode, ImageNode, VideoNode, DirectorNode) */
+
+:global(.flow-node) {
   background: #161b22;
   border: 1px solid #30363d;
   border-radius: 12px;
@@ -8,12 +10,12 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.flow-node.selected {
+:global(.flow-node.selected) {
   border-color: #58a6ff;
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
 }
 
-.flow-node.no-pad {
+:global(.flow-node.no-pad) {
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -24,13 +26,12 @@
   min-height: auto !important;
 }
 
-.flow-node.no-pad.selected {
+:global(.flow-node.no-pad.selected) {
   border: 1px solid #58a6ff;
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
 }
 
-/* Handles */
-.flow-handle {
+:global(.flow-handle) {
   width: 14px !important;
   height: 14px !important;
   background: #484f58 !important;
@@ -38,13 +39,12 @@
   border-radius: 50% !important;
 }
 
-.flow-handle:hover {
+:global(.flow-handle:hover) {
   background: #58a6ff !important;
   border-color: #58a6ff !important;
 }
 
-/* Content */
-.node-content {
+:global(.node-content) {
   padding: 20px 28px;
   font-size: 14px;
   line-height: 1.6;
@@ -55,12 +55,12 @@
   box-sizing: border-box;
 }
 
-.node-placeholder {
+:global(.node-placeholder) {
   color: #484f58;
   font-style: italic;
 }
 
-.node-placeholder-center {
+:global(.node-placeholder-center) {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -71,8 +71,7 @@
   height: 100%;
 }
 
-/* Image node */
-.node-img {
+:global(.node-img) {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -80,8 +79,7 @@
   border-radius: 4px;
 }
 
-/* Video node */
-.node-video-wrap {
+:global(.node-video-wrap) {
   width: 100%;
   height: 100%;
   position: relative;
@@ -91,14 +89,14 @@
   overflow: hidden;
 }
 
-.node-video-el {
+:global(.node-video-el) {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #000;
 }
 
-.node-video-overlay {
+:global(.node-video-overlay) {
   position: absolute;
   top: 50%;
   left: 50%;

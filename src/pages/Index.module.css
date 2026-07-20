@@ -33,7 +33,6 @@
   color: #8b949e;
 }
 
-/* Card Grid */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -56,7 +55,6 @@
   border-color: #58a6ff;
 }
 
-/* Add card */
 .add-card {
   border-style: dashed;
   border-color: #30363d;
@@ -86,7 +84,6 @@
   color: #58a6ff;
 }
 
-/* Card thumbnail */
 .card-thumb {
   position: relative;
   width: 100%;
@@ -151,7 +148,7 @@
   margin-bottom: 10px;
 }
 
-.tag {
+:global(.tag) {
   background: #1a2a3d;
   color: #58a6ff;
   padding: 2px 8px;
@@ -184,8 +181,7 @@
   background: #2d1217;
 }
 
-/* Modal */
-.modal-overlay {
+:global(.modal-overlay) {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
@@ -195,7 +191,7 @@
   z-index: 1000;
 }
 
-.modal {
+:global(.modal) {
   background: #161b22;
   border: 1px solid #30363d;
   border-radius: 12px;
@@ -206,17 +202,17 @@
   overflow-y: auto;
 }
 
-.modal h2 {
+:global(.modal h2) {
   margin: 0 0 20px;
   font-size: 18px;
   color: #e6edf3;
 }
 
-.form-group {
+:global(.form-group) {
   margin-bottom: 16px;
 }
 
-.form-group label {
+:global(.form-group label) {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
@@ -224,30 +220,30 @@
   font-weight: 500;
 }
 
-.form-group input,
-.form-group textarea {
+:global(.form-group input),
+:global(.form-group textarea) {
   width: 100%;
   box-sizing: border-box;
 }
 
-.form-row {
+:global(.form-row) {
   display: flex;
   gap: 16px;
 }
 
-.form-row .form-group {
+:global(.form-row .form-group) {
   flex: 1;
 }
 
-.modal-actions {
+:global(.modal-actions) {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
 }
 
-input,
-textarea {
+:global(input),
+:global(textarea) {
   border: 1px solid #30363d;
   border-radius: 6px;
   padding: 8px 12px;
@@ -259,17 +255,16 @@ textarea {
   transition: border-color 0.2s;
 }
 
-input:focus,
-textarea:focus {
+:global(input:focus),
+:global(textarea:focus) {
   border-color: #58a6ff;
 }
 
-textarea {
+:global(textarea) {
   resize: vertical;
 }
 
-/* Buttons */
-.btn-primary {
+:global(.btn-primary) {
   background: #238636;
   color: #fff;
   border: 1px solid rgba(240, 246, 252, 0.1);
@@ -280,17 +275,17 @@ textarea {
   transition: background 0.2s;
 }
 
-.btn-primary:hover {
+:global(.btn-primary:hover) {
   background: #2ea043;
 }
 
-.btn-primary:disabled {
+:global(.btn-primary:disabled) {
   background: #1a3a26;
   color: #6e7681;
   cursor: not-allowed;
 }
 
-.btn-cancel {
+:global(.btn-cancel) {
   background: #21262d;
   color: #c9d1d9;
   border: 1px solid #30363d;
@@ -301,6 +296,6 @@ textarea {
   transition: background 0.2s;
 }
 
-.btn-cancel:hover {
+:global(.btn-cancel:hover) {
   background: #30363d;
 }

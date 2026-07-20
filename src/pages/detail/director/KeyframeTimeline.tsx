@@ -1,6 +1,6 @@
 import { useRef, useCallback } from "react";
 import type { CameraTrack, CameraKeyframe } from "./types";
-import "./KeyframeTimeline.css";
+import styles from "./KeyframeTimeline.module.css";
 
 interface Props {
   tracks: CameraTrack[];
@@ -55,16 +55,16 @@ export default function KeyframeTimeline({
   }, [tracks, activeCameraId, currentTime, onKeyframesChange]);
 
   return (
-    <div className="kf-timeline">
+    <div className={styles["kf-timeline"]}>
       {/* Track list */}
-      <div className="kf-track-list">
+      <div className={styles["kf-track-list"]}>
         {tracks.map((track) => (
           <div
             key={track.id}
-            className={`kf-track-label${track.id === activeCameraId ? " active" : ""}`}
+            className={`${styles["kf-track-label"]}${track.id === activeCameraId ? " active" : ""}`}
           >
             <span
-              className="kf-track-color"
+              className={styles["kf-track-color"]}
               style={{ background: track.id === activeCameraId ? "#4ade80" : "#666" }}
             />
             {track.name}
@@ -73,23 +73,23 @@ export default function KeyframeTimeline({
       </div>
 
       {/* Timeline area */}
-      <div className="kf-timeline-area" ref={timelineRef} onClick={handleTimelineClick}>
+      <div className={styles["kf-timeline-area"]} ref={timelineRef} onClick={handleTimelineClick}>
         {/* Time ruler */}
-        <div className="kf-ruler">
+        <div className={styles["kf-ruler"]}>
           {Array.from({ length: Math.ceil(duration) + 1 }, (_, i) => (
-            <div key={i} className="kf-ruler-tick" style={{ left: `${(i / duration) * 100}%` }}>
-              <span className="kf-ruler-label">0:{String(i).padStart(2, "0")}</span>
+            <div key={i} className={styles["kf-ruler-tick"]} style={{ left: `${(i / duration) * 100}%` }}>
+              <span className={styles["kf-ruler-label"]}>0:{String(i).padStart(2, "0")}</span>
             </div>
           ))}
         </div>
 
         {/* Tracks */}
         {tracks.map((track) => (
-          <div key={track.id} className="kf-track-row">
+          <div key={track.id} className={styles["kf-track-row"]}>
             {track.keyframes.map((kf, idx) => (
               <div
                 key={idx}
-                className="kf-keyframe-dot"
+                className={styles["kf-keyframe-dot"]}
                 style={{
                   left: `${(kf.time / duration) * 100}%`,
                   background:
@@ -102,20 +102,20 @@ export default function KeyframeTimeline({
 
         {/* Playhead */}
         <div
-          className="kf-playhead"
+          className={styles["kf-playhead"]}
           style={{ left: `${(currentTime / duration) * 100}%` }}
         />
       </div>
 
       {/* Controls */}
-      <div className="kf-controls">
-        <button className="kf-ctrl-btn" onClick={playing ? onPause : onPlay}>
+      <div className={styles["kf-controls"]}>
+        <button className={styles["kf-ctrl-btn"]} onClick={playing ? onPause : onPlay}>
           {playing ? "⏸" : "▶"}
         </button>
-        <span className="kf-time-display">
+        <span className={styles["kf-time-display"]}>
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
-        <button className="kf-ctrl-btn" title="添加关键帧" onClick={handleAddKeyframe}>
+        <button className={styles["kf-ctrl-btn"]} title="添加关键帧" onClick={handleAddKeyframe}>
           + 关键帧
         </button>
       </div>

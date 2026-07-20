@@ -1,7 +1,8 @@
 import { useState, useCallback, type RefObject } from "react";
 import type { CameraTrack } from "./types";
 import { RESOLUTION_OPTIONS, DEFAULT_RESOLUTION } from "./types";
-import "./ExportMenu.css";
+import { showToast } from "../../../lib/toast";
+import styles from "./ExportMenu.module.css";
 
 interface Props {
   projectId: string;
@@ -49,6 +50,7 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
       setTimeout(() => recorder.stop(), 3000); // placeholder: record animation duration
     } catch (err) {
       console.error("Export video failed:", err);
+      showToast("导出视频失败，请稍后重试", "error");
       setExporting(null);
     }
   }, [canvasRef, projectId]);
@@ -81,6 +83,7 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
       setExporting(null);
     } catch (err) {
       console.error("Export frame failed:", err);
+      showToast("导出帧失败，请稍后重试", "error");
       setExporting(null);
     }
   }, [canvasRef, projectId]);
@@ -117,22 +120,23 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
       setExporting(null);
     } catch (err) {
       console.error("Export camera data failed:", err);
+      showToast("导出运镜数据失败，请稍后重试", "error");
       setExporting(null);
     }
   }, [cameraTrack, projectId]);
 
   return (
-    <div className="export-overlay" onClick={onClose}>
-      <div className="export-modal" onClick={(e) => e.stopPropagation()}>
+    <div className={styles["export-overlay"]} onClick={onClose}>
+      <div className={styles["export-modal"]} onClick={(e) => e.stopPropagation()}>
         <h3>⬇ 导出</h3>
 
-        <div className="export-section">
-          <div className="export-label">渲染分辨率</div>
-          <div className="export-resolution-list">
+        <div className={styles["export-section"]}>
+          <div className={styles["export-label"]}>渲染分辨率</div>
+          <div className={styles["export-resolution-list"]}>
             {RESOLUTION_OPTIONS.map((opt) => (
               <button
                 key={opt.label}
-                className={`export-res-btn${resolution.label === opt.label ? " active" : ""}`}
+                className={`${styles["export-res-btn"]}${resolution.label === opt.label ? " active" : ""}`}
                 onClick={() => setResolution(opt)}
               >
                 {opt.width}×{opt.height}
@@ -142,23 +146,23 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
           </div>
         </div>
 
-        <div className="export-actions">
+        <div className={styles["export-actions"]}>
           <button
-            className="export-action-btn"
+            className={styles["export-action-btn"]}
             disabled={exporting !== null}
             onClick={handleExportVideo}
           >
             {exporting === "video" ? "🎬 渲染中..." : "🎬 渲染视频"}
           </button>
           <button
-            className="export-action-btn"
+            className={styles["export-action-btn"]}
             disabled={exporting !== null}
             onClick={handleExportFrame}
           >
             {exporting === "frame" ? "🖼 保存中..." : "🖼 截取参考帧"}
           </button>
           <button
-            className="export-action-btn"
+            className={styles["export-action-btn"]}
             disabled={exporting !== null}
             onClick={handleExportCameraData}
           >
@@ -166,7 +170,7 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
           </button>
         </div>
 
-        <button className="export-close-btn" onClick={onClose}>关闭</button>
+        <button className={styles["export-close-btn"]} onClick={onClose}>关闭</button>
       </div>
     </div>
   );

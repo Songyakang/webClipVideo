@@ -58,7 +58,7 @@
   margin-top: 2px;
 }
 
-.export-res-btn.active {
+.export-res-btn:global(.active) {
   background: #2a2040;
   border-color: #7c3aed;
   color: #a78bfa;

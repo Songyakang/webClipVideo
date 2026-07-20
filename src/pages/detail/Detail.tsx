@@ -34,8 +34,8 @@ import DirectorOverlay from "./DirectorOverlay";
 import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
 import EditOverlay from "./EditOverlay";
-import "./Detail.css";
-import "./nodes/nodes.css";
+import styles from "./Detail.module.css";
+import "./nodes/nodes.module.css";
 
 const nodeTypes: NodeTypes = {
   text: TextNode,
@@ -133,7 +133,7 @@ export default function Detail() {
   const editNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
 
   return (
-    <div className="canvas-container" ref={containerRef}>
+    <div className={styles["canvas-container"]} ref={containerRef}>
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
 
       <ReactFlow
@@ -173,11 +173,11 @@ export default function Detail() {
         <Controls className="flow-controls" />
       </ReactFlow>
 
-      <button className="btn-back" onClick={() => navigate("/")}>&larr; 返回</button>
+      <button className={styles["btn-back"]} onClick={() => navigate("/")}>&larr; 返回</button>
 
       {selectedVideoNode && (
         <button
-          className={`btn-subtitle-toggle${showSubtitles ? " active" : ""}`}
+          className={`${styles["btn-subtitle-toggle"]}${showSubtitles ? " active" : ""}`}
           onClick={() => setShowSubtitles((v) => !v)}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

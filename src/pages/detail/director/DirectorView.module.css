@@ -46,7 +46,7 @@
   font-size: 12px;
 }
 
-.dv-mode-btn.active {
+.dv-mode-btn:global(.active) {
   background: #2a2040;
   border-color: #7c3aed;
   color: #a78bfa;

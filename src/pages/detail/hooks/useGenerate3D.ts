@@ -1,6 +1,7 @@
 import { useCallback, type MutableRefObject } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { resolveAssetPath } from "../../../lib/assets";
+import { showToast } from "../../../lib/toast";
 import type { Edge } from "@xyflow/react";
 import type { FlowNode, NodeData } from "../nodes/types";
 import type { DirectorNodeData, Generate3DResult, SceneModel } from "../../../lib/types";
@@ -66,6 +67,7 @@ export function useGenerate3D(
       .then((imageAbsPath) => {
         if (!imageAbsPath) {
           console.error("resolveAssetPath returned empty for:", imagePath);
+          showToast("文件读取失败，请检查文件是否存在", "error");
           return;
         }
         invoke<Generate3DResult>("generate_3d", { imagePath: imageAbsPath, projectId })
@@ -90,6 +92,7 @@ export function useGenerate3D(
           })
           .catch((err) => {
             console.error("generate_3d failed:", err);
+            showToast("3D 模型生成失败，请稍后重试", "error");
             setNodes((prev) =>
               prev.map((n) => {
                 if (n.id !== directorId) return n;
@@ -103,6 +106,7 @@ export function useGenerate3D(
       })
       .catch((err) => {
         console.error("resolveAssetPath failed:", err);
+        showToast("文件读取失败，请检查文件是否存在", "error");
         setNodes((prev) =>
           prev.map((n) => {
             if (n.id !== directorId) return n;

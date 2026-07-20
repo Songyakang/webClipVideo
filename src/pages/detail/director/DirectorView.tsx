@@ -6,7 +6,7 @@ import ScenePanel from "./ScenePanel";
 import KeyframeTimeline from "./KeyframeTimeline";
 import ExportMenu from "./ExportMenu";
 import WebGPUGuard from "./WebGPUCheck";
-import "./DirectorView.css";
+import styles from "./DirectorView.module.css";
 
 interface Props {
   data: DirectorNodeData;
@@ -62,27 +62,27 @@ export default function DirectorView({ data, onClose, onUpdate, projectId }: Pro
 
   return (
     <WebGPUGuard>
-      <div className="director-view-overlay">
+      <div className={styles["director-view-overlay"]}>
       {/* Toolbar */}
-      <div className="dv-toolbar">
-        <div className="dv-toolbar-left">
-          <span className="dv-title">🎬 {data.label}</span>
+      <div className={styles["dv-toolbar"]}>
+        <div className={styles["dv-toolbar-left"]}>
+          <span className={styles["dv-title"]}>🎬 {data.label}</span>
 
-          <div className="dv-transform-modes">
+          <div className={styles["dv-transform-modes"]}>
             <button
-              className={`dv-mode-btn${transformMode === "translate" ? " active" : ""}`}
+              className={`${styles["dv-mode-btn"]}${transformMode === "translate" ? " active" : ""}`}
               onClick={() => setTransformMode("translate")}
             >
               🖐 移动
             </button>
             <button
-              className={`dv-mode-btn${transformMode === "rotate" ? " active" : ""}`}
+              className={`${styles["dv-mode-btn"]}${transformMode === "rotate" ? " active" : ""}`}
               onClick={() => setTransformMode("rotate")}
             >
               🔄 旋转
             </button>
             <button
-              className={`dv-mode-btn${transformMode === "scale" ? " active" : ""}`}
+              className={`${styles["dv-mode-btn"]}${transformMode === "scale" ? " active" : ""}`}
               onClick={() => setTransformMode("scale")}
             >
               🔍 缩放
@@ -90,17 +90,17 @@ export default function DirectorView({ data, onClose, onUpdate, projectId }: Pro
           </div>
         </div>
 
-        <div className="dv-toolbar-right">
-          <button className="dv-btn" onClick={() => setShowExport(true)}>⬇ 导出</button>
-          <button className="dv-btn dv-btn-close" onClick={onClose}>✕ 关闭</button>
+        <div className={styles["dv-toolbar-right"]}>
+          <button className={styles["dv-btn"]} onClick={() => setShowExport(true)}>⬇ 导出</button>
+          <button className={`${styles["dv-btn"]} ${styles["dv-btn-close"]}`} onClick={onClose}>✕ 关闭</button>
         </div>
       </div>
 
       {/* Main area */}
-      <div className="dv-main">
-        <div className="dv-viewport">
-          <canvas ref={canvasRef} className="dv-canvas" />
-          <div className="dv-viewport-label">透视图</div>
+      <div className={styles["dv-main"]}>
+        <div className={styles["dv-viewport"]}>
+          <canvas ref={canvasRef} className={styles["dv-canvas"]} />
+          <div className={styles["dv-viewport-label"]}>透视图</div>
         </div>
 
         <ScenePanel

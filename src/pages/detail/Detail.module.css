@@ -1,10 +1,15 @@
-/* Canvas container */
+/* ===== Module-scoped classes (used by Detail.tsx) ===== */
+
 .canvas-container {
   position: fixed;
   inset: 0;
   overflow: hidden;
   cursor: grab;
   background-color: #0d1117;
+}
+
+.canvas-container:active {
+  cursor: grabbing;
 }
 
 .scissors-btn {
@@ -29,27 +34,6 @@
   to { transform: scale(1); }
 }
 
-.canvas-textarea {
-  position: absolute;
-  z-index: 50;
-  border: none;
-  outline: none;
-  background: #0d1117;
-  color: #e6edf3;
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.6;
-  resize: none;
-  padding: 0;
-  border-radius: 4px;
-  box-shadow: 0 0 0 2px #58a6ff;
-}
-
-.canvas-container:active {
-  cursor: grabbing;
-}
-
-
-/* Floating controls */
 .btn-back {
   position: fixed;
   top: 16px;
@@ -71,6 +55,33 @@
 
 .btn-back:hover {
   background: #21262d;
+}
+
+.btn-subtitle-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  background: #161b22;
+  border: 1px solid #30363d;
+  color: #58a6ff;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-subtitle-toggle:hover {
+  background: #21262d;
+}
+
+.btn-subtitle-toggle:global(.active) {
+  background: #1a2a3d;
+  border-color: #58a6ff;
 }
 
 .zoom-controls {
@@ -120,8 +131,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Title editor */
-.title-input {
+/* ===== Global classes (shared with child components) ===== */
+
+:global(.canvas-textarea) {
+  position: absolute;
+  z-index: 50;
+  border: none;
+  outline: none;
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  resize: none;
+  padding: 0;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px #58a6ff;
+}
+
+:global(.title-input) {
   position: fixed;
   top: 12px;
   left: 50%;
@@ -139,7 +166,7 @@
   min-width: 200px;
 }
 
-.title-display {
+:global(.title-display) {
   position: fixed;
   top: 0;
   left: 50%;
@@ -155,12 +182,11 @@
   transition: background 0.15s;
 }
 
-.title-display:hover {
+:global(.title-display:hover) {
   background: rgba(22, 27, 34, 0.8);
 }
 
-/* Context menu */
-.context-menu {
+:global(.context-menu) {
   position: fixed;
   z-index: 200;
   min-width: 180px;
@@ -175,7 +201,7 @@
   -ms-user-select: none;
 }
 
-.context-menu-item {
+:global(.context-menu-item) {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -191,12 +217,12 @@
   transition: background 0.1s;
 }
 
-.context-menu-item:hover:not(.disabled) {
+:global(.context-menu-item:hover:not(.disabled)) {
   background: #1f6feb;
   color: #fff;
 }
 
-.menu-group-title {
+:global(.menu-group-title) {
   padding: 8px 12px 4px;
   font-size: 11px;
   color: #6e7681;
@@ -209,53 +235,52 @@
   -ms-user-select: none;
 }
 
-.menu-group-title:not(:first-child) {
+:global(.menu-group-title:not(:first-child)) {
   margin-top: 4px;
   border-top: 1px solid #21262d;
   padding-top: 10px;
 }
 
-.menu-icon {
+:global(.menu-icon) {
   display: inline-flex;
   align-items: center;
   margin-right: 8px;
   color: #8b949e;
 }
 
-.context-menu-item:hover:not(.disabled) .menu-icon {
+:global(.context-menu-item:hover:not(.disabled) .menu-icon) {
   color: #fff;
 }
 
-.context-menu-item.danger {
+:global(.context-menu-item.danger) {
   color: #f85149;
 }
 
-.context-menu-item.danger:hover:not(.disabled) {
+:global(.context-menu-item.danger:hover:not(.disabled)) {
   background: #da3633;
   color: #fff;
 }
 
-.context-menu-item.disabled {
+:global(.context-menu-item.disabled) {
   color: #484f58;
   cursor: not-allowed;
 }
 
-.context-menu-item.disabled .menu-shortcut {
+:global(.context-menu-item.disabled .menu-shortcut) {
   color: #484f58;
 }
 
-.menu-shortcut {
+:global(.menu-shortcut) {
   font-size: 12px;
   color: #6e7681;
   margin-left: auto;
 }
 
-.context-menu-item:hover:not(.disabled) .menu-shortcut {
+:global(.context-menu-item:hover:not(.disabled) .menu-shortcut) {
   color: rgba(255, 255, 255, 0.7);
 }
 
-/* Modal overlay (same as Index) */
-.modal-overlay {
+:global(.modal-overlay) {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
@@ -265,7 +290,7 @@
   z-index: 100;
 }
 
-.modal {
+:global(.modal) {
   background: #161b22;
   border: 1px solid #30363d;
   border-radius: 12px;
@@ -276,17 +301,17 @@
   overflow-y: auto;
 }
 
-.modal h2 {
+:global(.modal h2) {
   margin: 0 0 20px;
   font-size: 18px;
   color: #e6edf3;
 }
 
-.form-group {
+:global(.form-group) {
   margin-bottom: 16px;
 }
 
-.form-group label {
+:global(.form-group label) {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
@@ -294,8 +319,8 @@
   font-weight: 500;
 }
 
-.form-group input,
-.form-group textarea {
+:global(.form-group input),
+:global(.form-group textarea) {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #30363d;
@@ -309,12 +334,12 @@
   transition: border-color 0.2s;
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
+:global(.form-group input:focus),
+:global(.form-group textarea:focus) {
   border-color: #58a6ff;
 }
 
-.form-actions {
+:global(.form-actions) {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -325,8 +350,7 @@ textarea {
   resize: vertical;
 }
 
-/* Buttons */
-.btn-primary {
+:global(.btn-primary) {
   background: #238636;
   color: #fff;
   border: 1px solid rgba(240, 246, 252, 0.1);
@@ -337,17 +361,17 @@ textarea {
   transition: background 0.2s;
 }
 
-.btn-primary:hover {
+:global(.btn-primary:hover) {
   background: #2ea043;
 }
 
-.btn-primary:disabled {
+:global(.btn-primary:disabled) {
   background: #1a3a26;
   color: #6e7681;
   cursor: not-allowed;
 }
 
-.btn-cancel {
+:global(.btn-cancel) {
   background: #21262d;
   color: #c9d1d9;
   border: 1px solid #30363d;
@@ -358,33 +382,10 @@ textarea {
   transition: background 0.2s;
 }
 
-.btn-cancel:hover {
+:global(.btn-cancel:hover) {
   background: #30363d;
 }
 
-.btn-subtitle-toggle {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 10;
-  background: #161b22;
-  border: 1px solid #30363d;
-  color: #58a6ff;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 8px 14px;
-  border-radius: 8px;
-  transition: background 0.15s;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-subtitle-toggle:hover {
-  background: #21262d;
-}
-
-.btn-subtitle-toggle.active {
-  background: #1a2a3d;
-  border-color: #58a6ff;
+:global(.flow-controls) {
+  /* Style overrides for ReactFlow Controls component */
 }

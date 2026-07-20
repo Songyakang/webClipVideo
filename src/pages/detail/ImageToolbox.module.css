@@ -50,7 +50,7 @@
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
 }
 
-.toolbox-btn.primary {
+.toolbox-btn:global(.primary) {
   background: #238636;
   border-color: rgba(240, 246, 252, 0.1);
   color: #fff;
@@ -58,11 +58,10 @@
   padding: 7px 24px;
 }
 
-.toolbox-btn.primary:hover {
+.toolbox-btn:global(.primary):hover {
   background: #2ea043;
 }
 
-/* Prompt textarea */
 .toolbox-prompt {
   width: 100%;
   padding: 10px 14px;
@@ -88,7 +87,6 @@
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
 }
 
-/* Radix Select */
 .toolbox-select {
   display: inline-flex;
   align-items: center;
@@ -120,7 +118,7 @@
   line-height: 1;
 }
 
-.select-dropdown {
+:global(.select-dropdown) {
   z-index: 300;
   background: #161b22;
   border: 1px solid #30363d;
@@ -130,7 +128,7 @@
   min-width: var(--radix-select-trigger-width);
 }
 
-.select-item {
+:global(.select-item) {
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 13px;
@@ -140,17 +138,16 @@
   transition: background 0.1s;
 }
 
-.select-item[data-highlighted] {
+:global(.select-item[data-highlighted]) {
   background: #1f6feb;
   color: #fff;
 }
 
-.select-item[data-state="checked"] {
+:global(.select-item[data-state="checked"]) {
   color: #58a6ff;
 }
 
-/* Radix Tooltip */
-.tooltip-content {
+:global(.tooltip-content) {
   z-index: 400;
   padding: 6px 12px;
   border-radius: 6px;
