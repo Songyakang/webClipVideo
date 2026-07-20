@@ -55,3 +55,58 @@ export interface AudioReplacement {
   endTime: number;
   wavPath: string;
 }
+
+export interface SceneModel {
+  id: string;
+  name: string;
+  modelPath: string;
+  thumbnailPath: string;
+  transform: {
+    position: [number, number, number];
+    rotation: [number, number, number];
+    scale: number;
+  };
+  meta: {
+    vertexCount: number;
+    faceCount: number;
+    sourceImageId: string;
+  };
+  status: "loading" | "ready" | "error";
+}
+
+export interface CameraKeyframe {
+  time: number;
+  fov: number;
+  position: [number, number, number];
+  lookAt: [number, number, number];
+}
+
+export interface CameraTrack {
+  id: string;
+  name: string;
+  enabled: boolean;
+  keyframes: CameraKeyframe[];
+  easing: "linear" | "ease-in" | "ease-out" | "ease-in-out";
+}
+
+export interface DirectorSceneSettings {
+  backgroundColor: string;
+  ambientLight: number;
+  gridVisible: boolean;
+}
+
+export interface DirectorNodeData {
+  label: string;
+  sourceImageNodeIds: string[];
+  models: SceneModel[];
+  cameraTracks: CameraTrack[];
+  sceneSettings: DirectorSceneSettings;
+}
+
+export interface Generate3DResult {
+  modelId: string;
+  modelPath: string;
+  thumbnailPath: string;
+  vertexCount: number;
+  faceCount: number;
+}
