@@ -1,6 +1,5 @@
 import { useRef, useCallback } from "react";
 import type { CameraTrack, CameraKeyframe } from "./types";
-import styles from "./KeyframeTimeline.module.css";
 
 interface Props {
   tracks: CameraTrack[];
@@ -55,71 +54,88 @@ export default function KeyframeTimeline({
   }, [tracks, activeCameraId, currentTime, onKeyframesChange]);
 
   return (
-    <div className={styles["kf-timeline"]}>
-      {/* Track list */}
-      <div className={styles["kf-track-list"]}>
-        {tracks.map((track) => (
-          <div
-            key={track.id}
-            className={`${styles["kf-track-label"]}${track.id === activeCameraId ? " active" : ""}`}
-          >
-            <span
-              className={styles["kf-track-color"]}
-              style={{ background: track.id === activeCameraId ? "#4ade80" : "#666" }}
-            />
-            {track.name}
-          </div>
-        ))}
-      </div>
-
-      {/* Timeline area */}
-      <div className={styles["kf-timeline-area"]} ref={timelineRef} onClick={handleTimelineClick}>
-        {/* Time ruler */}
-        <div className={styles["kf-ruler"]}>
-          {Array.from({ length: Math.ceil(duration) + 1 }, (_, i) => (
-            <div key={i} className={styles["kf-ruler-tick"]} style={{ left: `${(i / duration) * 100}%` }}>
-              <span className={styles["kf-ruler-label"]}>0:{String(i).padStart(2, "0")}</span>
+    <>
+      <style>{`
+        .kf-timeline { background: #0d0d1a; border-top: 1px solid #2a2a4a; }
+        .kf-track-list { border-right: 1px solid #2a2a4a; }
+        .kf-track-label { color: #888; }
+        .kf-track-label.active { background: #1a1a2e; color: #e0e0e0; }
+        .kf-ruler { border-bottom: 1px solid #2a2a4a; }
+        .kf-ruler-label { color: #555; }
+        .kf-track-row { border-bottom: 1px solid #1a1a2e; }
+        .kf-keyframe-dot { border: 1px solid #fff; }
+        .kf-playhead { background: #fff; }
+        .kf-controls { border-left: 1px solid #2a2a4a; }
+        .kf-ctrl-btn { background: #1a1a2e; border: 1px solid #333; border-radius: 4px; color: #ccc; }
+        .kf-time-display { color: #a78bfa; font-family: monospace; }
+      `}</style>
+      <div className="kf-timeline flex h-[120px] shrink-0">
+        {/* Track list */}
+        <div className="kf-track-list w-[120px] p-2 flex flex-col gap-1">
+          {tracks.map((track) => (
+            <div
+              key={track.id}
+              className={`kf-track-label flex items-center gap-1.5 p-1 rounded text-[11px] cursor-pointer${track.id === activeCameraId ? " active" : ""}`}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ background: track.id === activeCameraId ? "#4ade80" : "#666" }}
+              />
+              {track.name}
             </div>
           ))}
         </div>
 
-        {/* Tracks */}
-        {tracks.map((track) => (
-          <div key={track.id} className={styles["kf-track-row"]}>
-            {track.keyframes.map((kf, idx) => (
-              <div
-                key={idx}
-                className={styles["kf-keyframe-dot"]}
-                style={{
-                  left: `${(kf.time / duration) * 100}%`,
-                  background:
-                    idx === 0 ? "#4ade80" : idx === track.keyframes.length - 1 ? "#ef4444" : "#f59e0b",
-                }}
-              />
+        {/* Timeline area */}
+        <div className="flex-1 relative cursor-pointer" ref={timelineRef} onClick={handleTimelineClick}>
+          {/* Time ruler */}
+          <div className="kf-ruler h-5 relative">
+            {Array.from({ length: Math.ceil(duration) + 1 }, (_, i) => (
+              <div key={i} className="absolute top-0" style={{ left: `${(i / duration) * 100}%`, transform: "translateX(-50%)" }}>
+                <span className="kf-ruler-label text-[9px]">0:{String(i).padStart(2, "0")}</span>
+              </div>
             ))}
           </div>
-        ))}
 
-        {/* Playhead */}
-        <div
-          className={styles["kf-playhead"]}
-          style={{ left: `${(currentTime / duration) * 100}%` }}
-        />
-      </div>
+          {/* Tracks */}
+          {tracks.map((track) => (
+            <div key={track.id} className="kf-track-row h-7 relative">
+              {track.keyframes.map((kf, idx) => (
+                <div
+                  key={idx}
+                  className="kf-keyframe-dot absolute top-1/2 w-2.5 h-2.5 rounded-sm cursor-pointer z-[2]"
+                  style={{
+                    left: `${(kf.time / duration) * 100}%`,
+                    transform: "translate(-50%, -50%)",
+                    background:
+                      idx === 0 ? "#4ade80" : idx === track.keyframes.length - 1 ? "#ef4444" : "#f59e0b",
+                  }}
+                />
+              ))}
+            </div>
+          ))}
 
-      {/* Controls */}
-      <div className={styles["kf-controls"]}>
-        <button className={styles["kf-ctrl-btn"]} onClick={playing ? onPause : onPlay}>
-          {playing ? "⏸" : "▶"}
-        </button>
-        <span className={styles["kf-time-display"]}>
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
-        <button className={styles["kf-ctrl-btn"]} title="添加关键帧" onClick={handleAddKeyframe}>
-          + 关键帧
-        </button>
+          {/* Playhead */}
+          <div
+            className="kf-playhead absolute top-0 bottom-0 w-0.5 z-[3] pointer-events-none"
+            style={{ left: `${(currentTime / duration) * 100}%` }}
+          />
+        </div>
+
+        {/* Controls */}
+        <div className="kf-controls w-[120px] flex flex-col items-center justify-center gap-1.5 p-2">
+          <button className="kf-ctrl-btn px-2.5 py-1 rounded cursor-pointer text-[13px]" onClick={playing ? onPause : onPlay}>
+            {playing ? "⏸" : "▶"}
+          </button>
+          <span className="kf-time-display text-[11px]">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+          <button className="kf-ctrl-btn px-2.5 py-1 rounded cursor-pointer text-[13px]" title="添加关键帧" onClick={handleAddKeyframe}>
+            + 关键帧
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

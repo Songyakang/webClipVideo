@@ -2,7 +2,6 @@ import { useState, useCallback, type RefObject } from "react";
 import type { CameraTrack } from "./types";
 import { RESOLUTION_OPTIONS, DEFAULT_RESOLUTION } from "./types";
 import { showToast } from "../../../lib/toast";
-import styles from "./ExportMenu.module.css";
 
 interface Props {
   projectId: string;
@@ -126,52 +125,67 @@ export default function ExportMenu({ projectId, cameraTrack, canvasRef, onClose 
   }, [cameraTrack, projectId]);
 
   return (
-    <div className={styles["export-overlay"]} onClick={onClose}>
-      <div className={styles["export-modal"]} onClick={(e) => e.stopPropagation()}>
-        <h3>⬇ 导出</h3>
+    <>
+      <style>{`
+        .export-overlay { background: rgba(0, 0, 0, 0.6); }
+        .export-modal { background: #12121e; border: 1px solid #2a2a4a; border-radius: 12px; }
+        .export-modal h3 { color: #a78bfa; margin: 0 0 20px; font-size: 18px; }
+        .export-label { color: #888; }
+        .export-res-btn { background: #1a1a2e; border: 1px solid #333; border-radius: 6px; color: #999; }
+        .export-res-btn span { display: block; font-size: 10px; color: #555; margin-top: 2px; }
+        .export-res-btn.active { background: #2a2040; border-color: #7c3aed; color: #a78bfa; }
+        .export-action-btn { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; color: #ccc; }
+        .export-action-btn:hover:not(:disabled) { background: #2a2a4a; border-color: #555; }
+        .export-action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .export-close-btn { background: transparent; border: 1px solid #333; border-radius: 6px; color: #888; }
+      `}</style>
+      <div className="export-overlay fixed inset-0 flex items-center justify-center" style={{ zIndex: 2000 }} onClick={onClose}>
+        <div className="export-modal p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <h3>⬇ 导出</h3>
 
-        <div className={styles["export-section"]}>
-          <div className={styles["export-label"]}>渲染分辨率</div>
-          <div className={styles["export-resolution-list"]}>
-            {RESOLUTION_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                className={`${styles["export-res-btn"]}${resolution.label === opt.label ? " active" : ""}`}
-                onClick={() => setResolution(opt)}
-              >
-                {opt.width}×{opt.height}
-                <span>{opt.label}</span>
-              </button>
-            ))}
+          <div className="mb-5">
+            <div className="export-label text-sm mb-2">渲染分辨率</div>
+            <div className="flex gap-2 flex-wrap">
+              {RESOLUTION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.label}
+                  className={`export-res-btn px-3.5 py-2 text-xs text-center cursor-pointer${resolution.label === opt.label ? " active" : ""}`}
+                  onClick={() => setResolution(opt)}
+                >
+                  {opt.width}×{opt.height}
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className={styles["export-actions"]}>
-          <button
-            className={styles["export-action-btn"]}
-            disabled={exporting !== null}
-            onClick={handleExportVideo}
-          >
-            {exporting === "video" ? "🎬 渲染中..." : "🎬 渲染视频"}
-          </button>
-          <button
-            className={styles["export-action-btn"]}
-            disabled={exporting !== null}
-            onClick={handleExportFrame}
-          >
-            {exporting === "frame" ? "🖼 保存中..." : "🖼 截取参考帧"}
-          </button>
-          <button
-            className={styles["export-action-btn"]}
-            disabled={exporting !== null}
-            onClick={handleExportCameraData}
-          >
-            {exporting === "camera" ? "📐 保存中..." : "📐 导出运镜数据"}
-          </button>
-        </div>
+          <div className="flex flex-col gap-2 mb-4">
+            <button
+              className="export-action-btn px-4 py-3 text-sm text-left cursor-pointer"
+              disabled={exporting !== null}
+              onClick={handleExportVideo}
+            >
+              {exporting === "video" ? "🎬 渲染中..." : "🎬 渲染视频"}
+            </button>
+            <button
+              className="export-action-btn px-4 py-3 text-sm text-left cursor-pointer"
+              disabled={exporting !== null}
+              onClick={handleExportFrame}
+            >
+              {exporting === "frame" ? "🖼 保存中..." : "🖼 截取参考帧"}
+            </button>
+            <button
+              className="export-action-btn px-4 py-3 text-sm text-left cursor-pointer"
+              disabled={exporting !== null}
+              onClick={handleExportCameraData}
+            >
+              {exporting === "camera" ? "📐 保存中..." : "📐 导出运镜数据"}
+            </button>
+          </div>
 
-        <button className={styles["export-close-btn"]} onClick={onClose}>关闭</button>
+          <button className="export-close-btn w-full p-2 rounded-md cursor-pointer" onClick={onClose}>关闭</button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

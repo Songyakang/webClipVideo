@@ -6,7 +6,6 @@ import ScenePanel from "./ScenePanel";
 import KeyframeTimeline from "./KeyframeTimeline";
 import ExportMenu from "./ExportMenu";
 import WebGPUGuard from "./WebGPUCheck";
-import styles from "./DirectorView.module.css";
 
 interface Props {
   data: DirectorNodeData;
@@ -62,87 +61,99 @@ export default function DirectorView({ data, onClose, onUpdate, projectId }: Pro
 
   return (
     <WebGPUGuard>
-      <div className={styles["director-view-overlay"]}>
-      {/* Toolbar */}
-      <div className={styles["dv-toolbar"]}>
-        <div className={styles["dv-toolbar-left"]}>
-          <span className={styles["dv-title"]}>🎬 {data.label}</span>
+      <style>{`
+        .director-view-overlay { background: #0a0a14; color: #e0e0e0; font-family: system-ui, sans-serif; }
+        .dv-toolbar { background: #12121e; border-bottom: 1px solid #2a2a4a; height: 44px; }
+        .dv-title { color: #a78bfa; }
+        .dv-mode-btn { background: transparent; border: 1px solid #333; border-radius: 4px; color: #888; }
+        .dv-mode-btn.active { background: #2a2040; border-color: #7c3aed; color: #a78bfa; }
+        .dv-btn { background: #1a1a2e; border: 1px solid #333; border-radius: 4px; color: #ccc; }
+        .dv-btn:hover { background: #2a2a4a; }
+        .dv-btn-close:hover { background: #4a2020; border-color: #ef4444; color: #ef4444; }
+        .dv-viewport { background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a14 100%); }
+        .dv-viewport-label { color: #555; }
+      `}</style>
+      <div className="director-view-overlay fixed inset-0 flex flex-col" style={{ zIndex: 1000 }}>
+        {/* Toolbar */}
+        <div className="dv-toolbar flex items-center justify-between px-4 py-2 shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="dv-title font-semibold">🎬 {data.label}</span>
 
-          <div className={styles["dv-transform-modes"]}>
-            <button
-              className={`${styles["dv-mode-btn"]}${transformMode === "translate" ? " active" : ""}`}
-              onClick={() => setTransformMode("translate")}
-            >
-              🖐 移动
-            </button>
-            <button
-              className={`${styles["dv-mode-btn"]}${transformMode === "rotate" ? " active" : ""}`}
-              onClick={() => setTransformMode("rotate")}
-            >
-              🔄 旋转
-            </button>
-            <button
-              className={`${styles["dv-mode-btn"]}${transformMode === "scale" ? " active" : ""}`}
-              onClick={() => setTransformMode("scale")}
-            >
-              🔍 缩放
-            </button>
+            <div className="flex gap-1">
+              <button
+                className={`dv-mode-btn${transformMode === "translate" ? " active" : ""} px-2.5 py-1 cursor-pointer text-xs`}
+                onClick={() => setTransformMode("translate")}
+              >
+                🖐 移动
+              </button>
+              <button
+                className={`dv-mode-btn${transformMode === "rotate" ? " active" : ""} px-2.5 py-1 cursor-pointer text-xs`}
+                onClick={() => setTransformMode("rotate")}
+              >
+                🔄 旋转
+              </button>
+              <button
+                className={`dv-mode-btn${transformMode === "scale" ? " active" : ""} px-2.5 py-1 cursor-pointer text-xs`}
+                onClick={() => setTransformMode("scale")}
+              >
+                🔍 缩放
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button className="dv-btn px-3 py-1 cursor-pointer text-xs" onClick={() => setShowExport(true)}>⬇ 导出</button>
+            <button className="dv-btn dv-btn-close px-3 py-1 cursor-pointer text-xs" onClick={onClose}>✕ 关闭</button>
           </div>
         </div>
 
-        <div className={styles["dv-toolbar-right"]}>
-          <button className={styles["dv-btn"]} onClick={() => setShowExport(true)}>⬇ 导出</button>
-          <button className={`${styles["dv-btn"]} ${styles["dv-btn-close"]}`} onClick={onClose}>✕ 关闭</button>
-        </div>
-      </div>
+        {/* Main area */}
+        <div className="flex flex-1 min-h-0">
+          <div className="dv-viewport flex-1 relative">
+            <canvas ref={canvasRef} className="w-full h-full block" />
+            <div className="dv-viewport-label absolute bottom-3 left-3 text-xs">透视图</div>
+          </div>
 
-      {/* Main area */}
-      <div className={styles["dv-main"]}>
-        <div className={styles["dv-viewport"]}>
-          <canvas ref={canvasRef} className={styles["dv-canvas"]} />
-          <div className={styles["dv-viewport-label"]}>透视图</div>
+          <ScenePanel
+            models={data.models}
+            activeModelId={activeModelId}
+            cameraTracks={data.cameraTracks}
+            activeCameraId={activeCameraId}
+            onActiveCameraChange={setActiveCameraId}
+            onModelSelect={setActiveModelId}
+            onModelTransformUpdate={handleModelTransformUpdate}
+          />
         </div>
 
-        <ScenePanel
-          models={data.models}
-          activeModelId={activeModelId}
-          cameraTracks={data.cameraTracks}
+        {/* Timeline */}
+        <KeyframeTimeline
+          tracks={data.cameraTracks}
           activeCameraId={activeCameraId}
-          onActiveCameraChange={setActiveCameraId}
-          onModelSelect={setActiveModelId}
-          onModelTransformUpdate={handleModelTransformUpdate}
+          playing={playing}
+          currentTime={currentTime}
+          duration={duration}
+          onPlay={play}
+          onPause={pause}
+          onSeek={seek}
+          onKeyframesChange={(trackId, keyframes) => {
+            onUpdate({
+              ...data,
+              cameraTracks: data.cameraTracks.map((t) =>
+                t.id === trackId ? { ...t, keyframes } : t
+              ),
+            });
+          }}
         />
-      </div>
 
-      {/* Timeline */}
-      <KeyframeTimeline
-        tracks={data.cameraTracks}
-        activeCameraId={activeCameraId}
-        playing={playing}
-        currentTime={currentTime}
-        duration={duration}
-        onPlay={play}
-        onPause={pause}
-        onSeek={seek}
-        onKeyframesChange={(trackId, keyframes) => {
-          onUpdate({
-            ...data,
-            cameraTracks: data.cameraTracks.map((t) =>
-              t.id === trackId ? { ...t, keyframes } : t
-            ),
-          });
-        }}
-      />
-
-      {/* Export modal */}
-      {showExport && (
-        <ExportMenu
-          projectId={projectId}
-          cameraTrack={activeTrack}
-          canvasRef={canvasRef}
-          onClose={() => setShowExport(false)}
-        />
-      )}
+        {/* Export modal */}
+        {showExport && (
+          <ExportMenu
+            projectId={projectId}
+            cameraTrack={activeTrack}
+            canvasRef={canvasRef}
+            onClose={() => setShowExport(false)}
+          />
+        )}
       </div>
     </WebGPUGuard>
   );
