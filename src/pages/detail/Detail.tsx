@@ -122,8 +122,6 @@ export default function Detail() {
     setEditingNodeId(null);
   }, [editingNodeId, setNodes]);
 
-  if (!clip) return null;
-
   const toolboxStyle = useMemo(() => {
     if (!selectedNode) return null;
     const nodeType = selectedNode.data?.type;
@@ -143,6 +141,9 @@ export default function Detail() {
       transform: "translateX(-50%)",
     };
   }, [selectedNode, nodes]);
+
+  if (!clip) return null;
+
   const selectedVideoNode =
     selectedNode &&
     (selectedNode.data?.type === "video" || selectedNode.data?.type === "video-upload")
