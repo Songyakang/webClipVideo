@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import ImageToolbox from "../ImageToolbox";
 
-export default function TextNode({ data, selected }: NodeProps) {
+export default function TextNode({ data, selected, dragging }: NodeProps) {
   const d = data as any;
   const w = d.w || 700;
   const h = d.h || 400;
@@ -56,7 +56,7 @@ export default function TextNode({ data, selected }: NodeProps) {
       )}
 
       <Handle type="source" position={Position.Right} className="flow-handle" />
-      {selected && !isEditing && (
+      {selected && !isEditing && !dragging && (
         <div className="node-toolbox-wrapper">
           <ImageToolbox />
         </div>
