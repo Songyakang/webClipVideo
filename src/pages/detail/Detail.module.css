@@ -398,6 +398,7 @@ textarea {
   background: #000;
   border-radius: 8px;
   padding: 2px;
+  user-select: none;
 }
 
 .custom-controls button {
