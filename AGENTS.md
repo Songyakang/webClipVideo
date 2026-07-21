@@ -34,6 +34,11 @@ imgEl.src = blobUrl;
 videoEl.src = `file://${fullPath}`; // 在 Tauri 中不可用
 ```
 
+## 技术选型约束
+
+- **组件库**：统一使用 [Radix UI](https://www.radix-ui.com/primitives) 原语组件。若 Radix UI 中没有对应组件，提示用户考虑其他方案（如 shadcn/ui、手动实现等），不要自行引入额外组件库
+- **CSS**：使用 Tailwind CSS 编写样式
+
 ## 常见陷阱
 
 ### 持久化：IndexedDB 存取必须剔除 DOM 引用
