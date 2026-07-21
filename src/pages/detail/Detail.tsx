@@ -218,7 +218,16 @@ export default function Detail() {
         />
       )}
 
-      {menu && <ContextMenus menu={menu} onAction={handleMenuAction} />}
+      {menu && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 199 }}
+            onClick={() => setMenu(null)}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          <ContextMenus menu={menu} onAction={handleMenuAction} />
+        </>
+      )}
     </div>
   );
 }
