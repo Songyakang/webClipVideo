@@ -149,7 +149,6 @@ textarea {
   resize: none;
   padding: 0;
   border-radius: 4px;
-  box-shadow: 0 0 0 2px #58a6ff;
 }
 .title-input {
   position: fixed;

@@ -109,6 +109,8 @@ export default function Detail() {
     if (node.type === "director") {
       setDirectorNodeId(node.id);
     } else if (node.type === "text") {
+      setSelectedNode(null);
+      setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
       setEditingNodeId(node.id);
     }
   }, []);
