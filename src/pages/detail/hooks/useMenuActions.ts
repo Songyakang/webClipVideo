@@ -14,10 +14,12 @@ interface MenuActionDeps {
   generate3DFromImage: (imageNode: FlowNode) => void;
   uploadPosRef: React.MutableRefObject<{ x: number; y: number }>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -57,6 +59,14 @@ export function useMenuActions(deps: MenuActionDeps) {
         setMenu(null);
         break;
       }
+      case "撤销":
+        setMenu(null);
+        onUndo();
+        break;
+      case "重做":
+        setMenu(null);
+        onRedo();
+        break;
       case "复制节点":
       case "创建副本":
         if (menu.nodeId) duplicateNode(menu.nodeId);
@@ -65,7 +75,7 @@ export function useMenuActions(deps: MenuActionDeps) {
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo]);
 
   return { handleMenuAction };
 }

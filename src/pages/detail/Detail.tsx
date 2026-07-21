@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -21,6 +21,7 @@ import { useFileUpload } from "./hooks/useFileUpload";
 import { useMediaResizer } from "./hooks/useMediaResizer";
 import { useGenerate3D } from "./hooks/useGenerate3D";
 import { useMenuActions } from "./hooks/useMenuActions";
+import { useUndoHistory } from "./hooks/useUndoHistory";
 import ContextMenus from "./ContextMenus";
 import CustomControls from "./CustomControls";
 import TextNode from "./nodes/TextNode";
@@ -63,6 +64,13 @@ export default function Detail() {
   const nodeIdCounterRef = useRef(0);
   const edgeIdCounterRef = useRef(0);
 
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+
+  const { push, undo, redo } = useUndoHistory();
+
   const viewportCenter = useCallback(() => {
     const rf = rfInstance.current;
     if (!rf) return { x: 0, y: 0 };
@@ -95,6 +103,8 @@ export default function Detail() {
     addNode, deleteNode, duplicateNode,
     screenToFlow, generate3DFromImage,
     uploadPosRef, fileInputRef,
+    onUndo: () => { const snap = undo(); if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); } },
+    onRedo: () => { const snap = redo(); if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); } },
   });
 
   useKeyboardShortcuts({
@@ -104,6 +114,37 @@ export default function Detail() {
   });
 
   useCanvasPersistence(id!, nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
+
+  // Push undo snapshot on node/edge count changes (add/delete)
+  const prevLenRef = useRef({ nodes: nodes.length, edges: edges.length });
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    const prev = prevLenRef.current;
+    if (prev.nodes !== nodes.length || prev.edges !== edges.length) {
+      push(nodes, edges);
+      prev.nodes = nodes.length;
+      prev.edges = edges.length;
+    }
+    prevLenRef.current = { nodes: nodes.length, edges: edges.length };
+  }, [nodes.length, edges.length]);
+
+  // Ctrl+Z / Ctrl+Shift+Z keyboard bindings
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        const snap = undo();
+        if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        const snap = redo();
+        if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo, setNodes, setEdges]);
 
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
@@ -229,6 +270,7 @@ export default function Detail() {
         minZoom={0.2}
         maxZoom={3}
         zoomOnScroll={false}
+        onNodeDragStop={() => push(nodesRef.current, edgesRef.current)}
         panOnScroll={true}
         selectionMode={SelectionMode.Partial}
         deleteKeyCode={null}

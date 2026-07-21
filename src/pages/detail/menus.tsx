@@ -15,8 +15,8 @@ export const MAIN_MENU: MenuItem[] = [
   { label: "上传" },
   { label: "保存到我的资产" },
   { label: "添加节点" },
-  { label: "撤销", shortcut: "Ctrl+Z", disabled: true },
-  { label: "重做", shortcut: "Ctrl+Shift+Z", disabled: true },
+  { label: "撤销", shortcut: "Ctrl+Z" },
+  { label: "重做", shortcut: "Ctrl+Shift+Z" },
   { label: "粘贴", shortcut: "Ctrl+V", disabled: true },
 ];
 
