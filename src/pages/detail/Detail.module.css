@@ -386,38 +386,43 @@ textarea {
   background: #30363d;
 }
 
-:global(.flow-controls) {
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-  left: 50% !important;
+.custom-controls {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
   transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #000;
+  border-radius: 8px;
+  padding: 2px;
 }
 
-:global(.flow-controls .react-flow__controls-button) {
+.custom-controls button {
   width: 28px;
   height: 28px;
-  border-bottom: none;
-  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
   color: #fff;
-  fill: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-:global(.flow-controls .react-flow__controls-button:hover) {
+.custom-controls button:hover {
   background: #333;
 }
 
-.zoom-indicator {
-  position: absolute;
-  bottom: 12px;
-  right: 16px;
-  z-index: 10;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.5);
+.custom-controls span {
+  padding: 0 6px;
   color: #8b949e;
   font-size: 12px;
   font-family: monospace;
-  pointer-events: none;
   user-select: none;
 }

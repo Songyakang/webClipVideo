@@ -2,7 +2,6 @@ import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
-  Controls,
   Background,
   useNodesState,
   useEdgesState,
@@ -23,7 +22,7 @@ import { useMediaResizer } from "./hooks/useMediaResizer";
 import { useGenerate3D } from "./hooks/useGenerate3D";
 import { useMenuActions } from "./hooks/useMenuActions";
 import ContextMenus from "./ContextMenus";
-
+import CustomControls from "./CustomControls";
 import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
@@ -187,10 +186,9 @@ export default function Detail() {
         style={{ width: "100%", height: "100%" }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
-        <Controls className="flow-controls" />
       </ReactFlow>
 
-      <div className={styles["zoom-indicator"]}>{Math.round(zoom * 100)}%</div>
+      <CustomControls rfInstance={rfInstance} zoom={zoom} className={styles["custom-controls"]} />
 
       <button className={styles["btn-back"]} onClick={() => navigate("/")}>&larr; 返回</button>
 
