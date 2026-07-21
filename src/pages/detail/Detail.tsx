@@ -141,7 +141,13 @@ export default function Detail() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={addEdge}
+        onNodeClick={(_e, node) => {
+          setSelectedNode(node as FlowNode);
+        }}
         onNodeDoubleClick={handleNodeDoubleClick}
+        onPaneClick={() => {
+          setSelectedNode(null);
+        }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
