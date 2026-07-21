@@ -110,7 +110,7 @@ export default function Detail() {
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
       setDirectorNodeId(node.id);
-    } else {
+    } else if (node.type === "text") {
       setEditingNodeId(node.id);
     }
   }, []);
