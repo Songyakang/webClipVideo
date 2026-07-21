@@ -58,6 +58,7 @@ export default function Detail() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
+  const [zoom, setZoom] = useState(0.5);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const rfInstance = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
@@ -181,12 +182,15 @@ export default function Detail() {
         selectionMode={SelectionMode.Partial}
         deleteKeyCode={null}
         multiSelectionKeyCode="Shift"
+        onMoveEnd={(_e, vp) => setZoom(vp.zoom)}
         proOptions={{ hideAttribution: true }}
         style={{ width: "100%", height: "100%" }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
         <Controls className="flow-controls" />
       </ReactFlow>
+
+      <div className={styles["zoom-indicator"]}>{Math.round(zoom * 100)}%</div>
 
       <button className={styles["btn-back"]} onClick={() => navigate("/")}>&larr; 返回</button>
 

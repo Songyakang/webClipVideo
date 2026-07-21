@@ -406,3 +406,18 @@ textarea {
 :global(.flow-controls .react-flow__controls-button:hover) {
   background: #333;
 }
+
+.zoom-indicator {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  z-index: 10;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #8b949e;
+  font-size: 12px;
+  font-family: monospace;
+  pointer-events: none;
+  user-select: none;
+}
