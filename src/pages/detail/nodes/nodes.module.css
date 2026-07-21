@@ -13,6 +13,16 @@
 :global(.flow-node.selected) {
   border-color: #58a6ff;
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
+  overflow: visible;
+}
+
+:global(.node-toolbox-wrapper) {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 10px;
+  z-index: 100;
 }
 
 :global(.flow-node.no-pad) {

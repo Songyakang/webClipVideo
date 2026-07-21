@@ -2,20 +2,16 @@ import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import styles from "./ImageToolbox.module.css";
 
-interface Props {
-  style: React.CSSProperties;
-}
-
 const ChevronDown = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="6 9 12 15 18 9" />
   </svg>
 );
 
-export default function ImageToolbox({ style }: Props) {
+export default function ImageToolbox() {
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className={styles["image-toolbox"]} style={style} onMouseDown={(e) => e.stopPropagation()}>
+      <div className={styles["image-toolbox"]} onMouseDown={(e) => e.stopPropagation()}>
 
         {/* Section 1 */}
         <div className={styles["toolbox-row"]}>

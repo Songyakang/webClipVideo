@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -23,7 +23,7 @@ import { useMediaResizer } from "./hooks/useMediaResizer";
 import { useGenerate3D } from "./hooks/useGenerate3D";
 import { useMenuActions } from "./hooks/useMenuActions";
 import ContextMenus from "./ContextMenus";
-import ImageToolbox from "./ImageToolbox";
+
 import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
@@ -122,26 +122,6 @@ export default function Detail() {
     setEditingNodeId(null);
   }, [editingNodeId, setNodes]);
 
-  const toolboxStyle = useMemo(() => {
-    if (!selectedNode) return null;
-    const nodeType = selectedNode.data?.type;
-    if (nodeType !== "image" && nodeType !== "image-upload" && nodeType !== "text") return null;
-
-    const el = document.querySelector(`.react-flow__node[data-id="${selectedNode.id}"]`);
-    const container = containerRef.current;
-    if (!el || !container) return null;
-
-    const nodeRect = el.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-
-    return {
-      position: "absolute" as const,
-      left: nodeRect.left - containerRect.left + nodeRect.width / 2,
-      top: nodeRect.bottom - containerRect.top + 8,
-      transform: "translateX(-50%)",
-    };
-  }, [selectedNode, nodes]);
-
   if (!clip) return null;
 
   const selectedVideoNode =
@@ -217,10 +197,6 @@ export default function Detail() {
       />
 
       <TitleEditor clip={clip} onUpdate={setClip} />
-
-      {toolboxStyle && (
-        <ImageToolbox style={toolboxStyle} />
-      )}
 
       {editNode && (
         <EditOverlay node={editNode} onCommit={commitEdit} rfInstance={rfInstance} />

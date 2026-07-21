@@ -1,4 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import ImageToolbox from "../ImageToolbox";
+
 export default function TextNode({ data, selected }: NodeProps) {
   const d = data as any;
   const w = d.w || 700;
@@ -13,6 +15,11 @@ export default function TextNode({ data, selected }: NodeProps) {
         {d.content || <span className="node-placeholder">双击编辑文本</span>}
       </div>
       <Handle type="source" position={Position.Right} className="flow-handle" />
+      {selected && (
+        <div className="node-toolbox-wrapper">
+          <ImageToolbox />
+        </div>
+      )}
     </div>
   );
 }

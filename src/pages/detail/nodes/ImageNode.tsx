@@ -1,4 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import ImageToolbox from "../ImageToolbox";
+
 export default function ImageNode({ data, selected }: NodeProps) {
   const d = data as any;
   const w = d.w || 700;
@@ -25,6 +27,11 @@ export default function ImageNode({ data, selected }: NodeProps) {
         </div>
       )}
       <Handle type="source" position={Position.Right} className="flow-handle" />
+      {selected && (
+        <div className="node-toolbox-wrapper">
+          <ImageToolbox />
+        </div>
+      )}
     </div>
   );
 }
