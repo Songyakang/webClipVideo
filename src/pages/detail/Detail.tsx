@@ -227,6 +227,7 @@ export default function Detail() {
         defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
         minZoom={0.2}
         maxZoom={3}
+        zoomOnScroll={false}
         selectionMode={SelectionMode.Partial}
         deleteKeyCode={null}
         multiSelectionKeyCode="Shift"
