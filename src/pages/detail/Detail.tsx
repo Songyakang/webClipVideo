@@ -244,12 +244,9 @@ export default function Detail() {
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();
-          // If right-clicked node is not in current multi-select, select only it
-          if (!selectedNodes.some((n) => n.id === node.id)) {
-            setSelectedNodes([node as FlowNode]);
-          }
+          setSelectedNodes([node as FlowNode]);
           setNodes((nds) =>
-            nds.map((n) => ({ ...n, selected: n.id === node.id || selectedNodes.some((s) => s.id === n.id) })),
+            nds.map((n) => ({ ...n, selected: n.id === node.id })),
           );
           setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
         }}
