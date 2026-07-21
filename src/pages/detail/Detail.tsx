@@ -33,8 +33,6 @@ import DirectorOverlay from "./DirectorOverlay";
 import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
 import EditOverlay from "./EditOverlay";
-import styles from "./Detail.module.css";
-import "./nodes/nodes.module.css";
 
 const nodeTypes: NodeTypes = {
   text: TextNode,
@@ -132,8 +130,59 @@ export default function Detail() {
   const editNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
 
   return (
-    <div className={styles["canvas-container"]} ref={containerRef}>
+    <div className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing" style={{ backgroundColor: "#0d1117" }} ref={containerRef}>
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
+
+      <style>{`
+        .btn-back,
+        .btn-subtitle-toggle {
+          transition: background 0.15s;
+        }
+        .btn-back {
+          background: #161b22;
+          border: 1px solid #30363d;
+          color: #58a6ff;
+        }
+        .btn-back:hover {
+          background: #21262d;
+        }
+        .btn-subtitle-toggle {
+          background: #161b22;
+          border: 1px solid #30363d;
+          color: #58a6ff;
+        }
+        .btn-subtitle-toggle:hover {
+          background: #21262d;
+        }
+        .btn-subtitle-toggle.active {
+          background: #1a2a3d;
+          border-color: #58a6ff;
+        }
+        .custom-controls button {
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .custom-controls button:hover {
+          background: #333;
+        }
+        .custom-controls span {
+          padding: 0 6px;
+          color: #8b949e;
+          font-size: 12px;
+          font-family: monospace;
+          user-select: none;
+        }
+      `}</style>
 
       <ReactFlow
         nodes={nodes}
@@ -188,13 +237,13 @@ export default function Detail() {
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
       </ReactFlow>
 
-      <CustomControls rfInstance={rfInstance} zoom={zoom} className={styles["custom-controls"]} />
+      <CustomControls rfInstance={rfInstance} zoom={zoom} className="custom-controls absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-black rounded-lg p-0.5 select-none" />
 
-      <button className={styles["btn-back"]} onClick={() => navigate("/")}>&larr; 返回</button>
+      <button className="btn-back fixed top-4 left-4 z-10 cursor-pointer px-4 py-2 rounded-lg select-none text-sm" onClick={() => navigate("/")}>&larr; 返回</button>
 
       {selectedVideoNode && (
         <button
-          className={`${styles["btn-subtitle-toggle"]}${showSubtitles ? " active" : ""}`}
+          className={`btn-subtitle-toggle fixed top-4 right-4 z-10 cursor-pointer px-3.5 py-2 rounded-lg text-[13px] flex items-center gap-1.5${showSubtitles ? " active" : ""}`}
           onClick={() => setShowSubtitles((v) => !v)}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

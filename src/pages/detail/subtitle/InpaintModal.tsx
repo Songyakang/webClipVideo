@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import "./InpaintModal.css";
 
 interface Region {
   x: number;
@@ -173,7 +172,7 @@ export default function InpaintModal({
       const fullPath = videoAssetPath.startsWith("/")
         ? videoAssetPath
         : await resolveAssetPath(videoAssetPath);
-      console.log("[inpaint] videoAssetPath:", videoAssetPath, "→ fullPath:", fullPath);
+      console.log("[inpaint] videoAssetPath:", videoAssetPath, "-> fullPath:", fullPath);
 
       const unlisten = await listen<{ frame: number; total: number; percent: number }>(
         "inpaint-progress",
@@ -242,28 +241,59 @@ export default function InpaintModal({
   // --- Render: Choose type ---
   if (step === "choose") {
     return (
-      <div className="inpaint-overlay" onClick={onClose}>
-        <div className="inpaint-card" onClick={(e) => e.stopPropagation()}>
-          <h3 className="inpaint-title">字幕擦除</h3>
-          <div className="inpaint-choices">
-            <button
-              className="inpaint-choice-btn"
-              onClick={() => { setMode("hard"); setStep("region"); }}
-            >
-              <span className="inpaint-choice-label">去除硬字幕</span>
-              <span className="inpaint-choice-desc">使用画面修复技术擦除视频中烧录的字幕</span>
-            </button>
-            <button
-              className="inpaint-choice-btn"
-              onClick={() => { setMode("soft"); handleStripSoft(); }}
-            >
-              <span className="inpaint-choice-label">去除软字幕</span>
-              <span className="inpaint-choice-desc">剥离视频封装中的字幕轨道（秒级完成）</span>
-            </button>
+      <>
+        <style>{`
+          @keyframes inpaintFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          .inpaint-choice-btn { background: #0d1117; border: 1px solid #30363d; }
+          .inpaint-choice-btn:hover { border-color: #58a6ff; background: #161b22; }
+          .inpaint-cancel-btn { border: 1px solid #30363d; background: transparent; color: #8b949e; }
+          .inpaint-cancel-btn:hover { color: #e6edf3; }
+        `}</style>
+        <div
+          className="fixed inset-0 z-[250] flex flex-col items-center justify-center"
+          style={{
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            animation: "inpaintFadeIn 0.3s ease-out",
+          }}
+          onClick={onClose}
+        >
+          <div
+            className="flex flex-col items-center gap-5 min-w-[360px] max-w-[800px] rounded-2xl px-10 py-8"
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold m-0" style={{ color: "#e6edf3" }}>
+              字幕擦除
+            </h3>
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                className="inpaint-choice-btn flex flex-col gap-1 p-4 rounded-xl cursor-pointer text-left transition-colors duration-150"
+                onClick={() => { setMode("hard"); setStep("region"); }}
+              >
+                <span className="text-sm font-semibold" style={{ color: "#e6edf3" }}>去除硬字幕</span>
+                <span className="text-xs" style={{ color: "#8b949e" }}>使用画面修复技术擦除视频中烧录的字幕</span>
+              </button>
+              <button
+                className="inpaint-choice-btn flex flex-col gap-1 p-4 rounded-xl cursor-pointer text-left transition-colors duration-150"
+                onClick={() => { setMode("soft"); handleStripSoft(); }}
+              >
+                <span className="text-sm font-semibold" style={{ color: "#e6edf3" }}>去除软字幕</span>
+                <span className="text-xs" style={{ color: "#8b949e" }}>剥离视频封装中的字幕轨道（秒级完成）</span>
+              </button>
+            </div>
+            <button className="inpaint-cancel-btn px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={onClose}>取消</button>
           </div>
-          <button className="inpaint-cancel-btn" onClick={onClose}>取消</button>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -278,91 +308,179 @@ export default function InpaintModal({
     const rh = region.height * scaleY;
 
     return (
-      <div className="inpaint-overlay" onClick={onClose}>
+      <>
+        <style>{`
+          @keyframes inpaintFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes inpaintSpin {
+            to { transform: rotate(360deg); }
+          }
+          .inpaint-btn { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+          .inpaint-btn:hover { background: #30363d; }
+          .inpaint-btn.primary { background: #238636; color: #fff; border: 1px solid #238636; }
+          .inpaint-btn.primary:hover { background: #2ea043; }
+          .inpaint-cancel-btn { border: 1px solid #30363d; background: transparent; color: #8b949e; }
+          .inpaint-cancel-btn:hover { color: #e6edf3; }
+          .frame-img { -webkit-user-drag: none; }
+        `}</style>
         <div
-          className="inpaint-region-card"
-          onClick={(e) => e.stopPropagation()}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          className="fixed inset-0 z-[250] flex flex-col items-center justify-center"
+          style={{
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            animation: "inpaintFadeIn 0.3s ease-out",
+          }}
+          onClick={onClose}
         >
-          <h3 className="inpaint-title">框选字幕区域</h3>
+          <div
+            className="flex flex-col gap-4 px-8 py-6 rounded-2xl overflow-y-auto"
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              maxWidth: "900px",
+              maxHeight: "90vh",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
+            <h3 className="text-base font-semibold m-0" style={{ color: "#e6edf3" }}>框选字幕区域</h3>
 
-          <div className="inpaint-frame-wrap">
-            {frameUrl && (
-              <img
-                ref={imgRef}
-                src={frameUrl}
-                className="inpaint-frame-img"
-                onLoad={(e) => {
-                  const img = e.currentTarget;
-                  setFrameNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-                  const h = Math.round(img.naturalHeight * 0.15);
-                  const y = img.naturalHeight - h;
-                  setRegion({ x: 0, y, width: img.naturalWidth, height: h });
-                }}
-                draggable={false}
-              />
-            )}
+            <div className="relative inline-block leading-none rounded-lg overflow-hidden" style={{ border: "1px solid #30363d" }}>
+              {frameUrl && (
+                <img
+                  ref={imgRef}
+                  src={frameUrl}
+                  className="frame-img block max-w-[800px] max-h-[450px] select-none"
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setFrameNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+                    const h = Math.round(img.naturalHeight * 0.15);
+                    const y = img.naturalHeight - h;
+                    setRegion({ x: 0, y, width: img.naturalWidth, height: h });
+                  }}
+                  draggable={false}
+                />
+              )}
 
-            {/* Selection overlay */}
-            {frameNaturalSize.w > 0 && (
-              <>
-                <div className="inpaint-mask-top" style={{ height: ry }} />
-                <div className="inpaint-mask-middle" style={{ top: ry, height: rh }}>
-                  <div className="inpaint-mask-left" style={{ width: rx }} />
+              {/* Selection overlay */}
+              {frameNaturalSize.w > 0 && (
+                <>
                   <div
-                    className="inpaint-selection"
-                    style={{ width: rw, height: rh }}
-                    onMouseDown={(e) => handleMouseDown(e, "move")}
+                    className="absolute pointer-events-none z-[1]"
+                    style={{
+                      background: "rgba(0,0,0,0.45)",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: ry,
+                    }}
+                  />
+                  <div
+                    className="absolute left-0 right-0 flex z-[1]"
+                    style={{ top: ry, height: rh }}
                   >
-                    <div className="inpaint-sel-corner" onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, "corner"); }} />
-                    <div className="inpaint-sel-edge" onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, "edge"); }} />
+                    <div
+                      className="absolute pointer-events-none z-[1]"
+                      style={{
+                        background: "rgba(0,0,0,0.45)",
+                        top: 0,
+                        bottom: 0,
+                        left: 0,
+                        width: rx,
+                      }}
+                    />
+                    <div
+                      className="relative border-2 border-dashed cursor-move z-[2]"
+                      style={{
+                        borderColor: "#58a6ff",
+                        width: rw,
+                        height: rh,
+                      }}
+                      onMouseDown={(e) => handleMouseDown(e, "move")}
+                    >
+                      <div
+                        className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize"
+                        style={{
+                          background: "#58a6ff",
+                          borderRadius: "0 0 2px 0",
+                        }}
+                        onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, "corner"); }}
+                      />
+                      <div
+                        className="absolute -bottom-1 left-1/4 right-1/4 h-2.5 cursor-ns-resize"
+                        onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, "edge"); }}
+                      />
+                    </div>
+                    <div
+                      className="absolute pointer-events-none z-[1]"
+                      style={{
+                        background: "rgba(0,0,0,0.45)",
+                        top: 0,
+                        bottom: 0,
+                        right: 0,
+                        width: Math.max(0, display.w - rx - rw),
+                      }}
+                    />
                   </div>
-                  <div className="inpaint-mask-right" style={{ width: Math.max(0, display.w - rx - rw) }} />
-                </div>
-                <div className="inpaint-mask-bottom" style={{ top: ry + rh, height: Math.max(0, display.h - ry - rh) }} />
-              </>
-            )}
-          </div>
-
-          <div className="inpaint-region-info">
-            <span>x={region.x} y={region.y} w={region.width} h={region.height}</span>
-            <label>
-              预览帧时间:
-              <input
-                type="number"
-                className="inpaint-time-input"
-                value={timeInput}
-                onChange={(e) => setTimeInput(e.target.value)}
-                min="0"
-                step="1"
-              />
-              s
-            </label>
-            <button className="inpaint-btn secondary" onClick={handlePreview}>
-              {previewUrl ? "刷新预览" : "预览效果"}
-            </button>
-          </div>
-
-          {previewUrl && (
-            <div className="inpaint-preview-row">
-              <div>
-                <span className="inpaint-preview-label">原图</span>
-                <img src={frameUrl!} className="inpaint-preview-img" alt="original" />
-              </div>
-              <div>
-                <span className="inpaint-preview-label">修复后</span>
-                <img src={previewUrl} className="inpaint-preview-img" alt="preview" />
-              </div>
+                  <div
+                    className="absolute pointer-events-none z-[1]"
+                    style={{
+                      background: "rgba(0,0,0,0.45)",
+                      left: 0,
+                      right: 0,
+                      top: ry + rh,
+                      height: Math.max(0, display.h - ry - rh),
+                    }}
+                  />
+                </>
+              )}
             </div>
-          )}
 
-          <div className="inpaint-actions">
-            <button className="inpaint-cancel-btn" onClick={() => setStep("choose")}>上一步</button>
-            <button className="inpaint-btn primary" onClick={handleStartProcess}>开始擦除</button>
+            <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: "#8b949e" }}>
+              <span>x={region.x} y={region.y} w={region.width} h={region.height}</span>
+              <label>
+                预览帧时间:
+                <input
+                  type="number"
+                  className="w-[60px] px-1.5 py-1 rounded text-xs mx-1"
+                  style={{ background: "#0d1117", border: "1px solid #30363d", color: "#e6edf3" }}
+                  value={timeInput}
+                  onChange={(e) => setTimeInput(e.target.value)}
+                  min="0"
+                  step="1"
+                />
+                s
+              </label>
+              <button className="inpaint-btn px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={handlePreview}>
+                {previewUrl ? "刷新预览" : "预览效果"}
+              </button>
+            </div>
+
+            {previewUrl && (
+              <div className="flex gap-3 justify-center">
+                <div>
+                  <span className="block text-xs mb-1 text-center" style={{ color: "#8b949e" }}>原图</span>
+                  <img src={frameUrl!} className="max-w-[350px] max-h-[200px] rounded" style={{ border: "1px solid #30363d" }} alt="original" />
+                </div>
+                <div>
+                  <span className="block text-xs mb-1 text-center" style={{ color: "#8b949e" }}>修复后</span>
+                  <img src={previewUrl} className="max-w-[350px] max-h-[200px] rounded" style={{ border: "1px solid #30363d" }} alt="preview" />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-center">
+              <button className="inpaint-cancel-btn px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={() => setStep("choose")}>上一步</button>
+              <button className="inpaint-btn primary px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={handleStartProcess}>开始擦除</button>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -370,71 +488,171 @@ export default function InpaintModal({
   if (step === "processing") {
     const isSoft = mode === "soft";
     return (
-      <div className="inpaint-overlay">
-        <div className="inpaint-card">
-          {isSoft ? (
-            <>
-              <div className="inpaint-spinner" />
-              <h3 className="inpaint-title">正在去除软字幕</h3>
-              <p className="inpaint-message">{processingMessage}</p>
-            </>
-          ) : (
-            <>
-              <div className="inpaint-spinner" />
-              <h3 className="inpaint-title">正在擦除硬字幕</h3>
-              <div className="inpaint-progress-track">
+      <>
+        <style>{`
+          @keyframes inpaintFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes inpaintSpin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+        <div
+          className="fixed inset-0 z-[250] flex flex-col items-center justify-center"
+          style={{
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            animation: "inpaintFadeIn 0.3s ease-out",
+          }}
+        >
+          <div
+            className="flex flex-col items-center gap-5 min-w-[360px] max-w-[800px] rounded-2xl px-10 py-8"
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            }}
+          >
+            {isSoft ? (
+              <>
                 <div
-                  className="inpaint-progress-fill"
-                  style={{ width: `${Math.min(progress.percent, 100)}%`, animation: "none" }}
+                  className="w-10 h-10 rounded-full"
+                  style={{
+                    border: "3px solid #21262d",
+                    borderTopColor: "#58a6ff",
+                    animation: "inpaintSpin 0.8s linear infinite",
+                  }}
                 />
-              </div>
-              <p className="inpaint-message">
-                {progress.percent > 0
-                  ? `处理中 ${progress.percent}% (第 ${progress.frame} / ${progress.total} 帧)`
-                  : "正在启动处理..."}
-              </p>
-            </>
-          )}
+                <h3 className="text-base font-semibold m-0" style={{ color: "#e6edf3" }}>正在去除软字幕</h3>
+                <p className="text-[13px] m-0" style={{ color: "#8b949e" }}>{processingMessage}</p>
+              </>
+            ) : (
+              <>
+                <div
+                  className="w-10 h-10 rounded-full"
+                  style={{
+                    border: "3px solid #21262d",
+                    borderTopColor: "#58a6ff",
+                    animation: "inpaintSpin 0.8s linear infinite",
+                  }}
+                />
+                <h3 className="text-base font-semibold m-0" style={{ color: "#e6edf3" }}>正在擦除硬字幕</h3>
+                <div className="w-full h-1.5 rounded overflow-hidden" style={{ background: "#21262d" }}>
+                  <div
+                    className="h-full rounded"
+                    style={{
+                      background: "linear-gradient(90deg, #238636, #58a6ff)",
+                      transition: "width 0.3s ease",
+                      width: `${Math.min(progress.percent, 100)}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-[13px] m-0" style={{ color: "#8b949e" }}>
+                  {progress.percent > 0
+                    ? `处理中 ${progress.percent}% (第 ${progress.frame} / ${progress.total} 帧)`
+                    : "正在启动处理..."}
+                </p>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // --- Render: Done ---
   if (step === "done") {
     return (
-      <div className="inpaint-overlay" onClick={onClose}>
-        <div className="inpaint-card" onClick={(e) => e.stopPropagation()}>
-          <div className="inpaint-done-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
-          <h3 className="inpaint-title">擦除完成</h3>
-          <p className="inpaint-message">{outputPath.split("/").pop()}</p>
-          <div className="inpaint-actions">
-            <button className="inpaint-btn secondary" onClick={handleOpenFolder}>打开文件夹</button>
-            <button className="inpaint-btn primary" onClick={() => { onReplaceVideo(outputPath); onClose(); }}>替换原视频</button>
+      <>
+        <style>{`
+          @keyframes inpaintFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          .inpaint-btn { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+          .inpaint-btn:hover { background: #30363d; }
+          .inpaint-btn.primary { background: #238636; color: #fff; border: 1px solid #238636; }
+          .inpaint-btn.primary:hover { background: #2ea043; }
+        `}</style>
+        <div
+          className="fixed inset-0 z-[250] flex flex-col items-center justify-center"
+          style={{
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            animation: "inpaintFadeIn 0.3s ease-out",
+          }}
+          onClick={onClose}
+        >
+          <div
+            className="flex flex-col items-center gap-5 min-w-[360px] max-w-[800px] rounded-2xl px-10 py-8"
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#238636" }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h3 className="text-base font-semibold m-0" style={{ color: "#e6edf3" }}>擦除完成</h3>
+            <p className="text-[13px] m-0" style={{ color: "#8b949e" }}>{outputPath.split("/").pop()}</p>
+            <div className="flex gap-3 justify-center">
+              <button className="inpaint-btn px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={handleOpenFolder}>打开文件夹</button>
+              <button className="inpaint-btn primary px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={() => { onReplaceVideo(outputPath); onClose(); }}>替换原视频</button>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // --- Render: Error ---
   return (
-    <div className="inpaint-overlay" onClick={onClose}>
-      <div className="inpaint-card" onClick={(e) => e.stopPropagation()}>
-        <div className="inpaint-error-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
+    <>
+      <style>{`
+        @keyframes inpaintFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .inpaint-btn.primary { background: #238636; color: #fff; border: 1px solid #238636; }
+        .inpaint-btn.primary:hover { background: #2ea043; }
+      `}</style>
+      <div
+        className="fixed inset-0 z-[250] flex flex-col items-center justify-center"
+        style={{
+          background: "rgba(0,0,0,0.5)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          animation: "inpaintFadeIn 0.3s ease-out",
+        }}
+        onClick={onClose}
+      >
+        <div
+          className="flex flex-col items-center gap-5 min-w-[360px] max-w-[800px] rounded-2xl px-10 py-8"
+          style={{
+            background: "#161b22",
+            border: "1px solid #30363d",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#da3633" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </div>
+          <h3 className="text-base font-semibold m-0" style={{ color: "#e6edf3" }}>擦除失败</h3>
+          <p className="text-[13px] m-0" style={{ color: "#8b949e" }}>{errorMessage}</p>
+          <button className="inpaint-btn primary px-5 py-2 rounded text-[13px] cursor-pointer transition-colors duration-150" onClick={onClose}>确定</button>
         </div>
-        <h3 className="inpaint-title">擦除失败</h3>
-        <p className="inpaint-message">{errorMessage}</p>
-        <button className="inpaint-btn primary" onClick={onClose}>确定</button>
       </div>
-    </div>
+    </>
   );
 }

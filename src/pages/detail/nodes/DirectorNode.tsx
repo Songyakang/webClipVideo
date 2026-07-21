@@ -1,7 +1,6 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { DirectorNodeData, SceneModel } from "../../../lib/types";
-import "./DirectorNode.css";
 
 function DirectorNode({ data, selected }: NodeProps) {
   const d = data as unknown as DirectorNodeData;

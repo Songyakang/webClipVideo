@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { ToastType } from "../lib/toast";
-import styles from "./Toast.module.css";
 
 interface ToastItem {
   id: number;
@@ -46,11 +45,54 @@ export default function Toast() {
   if (items.length === 0) return null;
 
   return (
-    <div className={styles["toast-container"]}>
+    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
+      <style>{`
+        .toast {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 16px;
+          border-radius: 8px;
+          font-size: 14px;
+          line-height: 1.4;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+          pointer-events: auto;
+          animation: toast-in 0.2s ease-out;
+          max-width: 360px;
+          word-break: break-word;
+        }
+        .toast-error {
+          background: #3d1111;
+          border: 1px solid #da3633;
+          color: #ffa198;
+        }
+        .toast-success {
+          background: #11231e;
+          border: 1px solid #238636;
+          color: #7ee787;
+        }
+        .toast-info {
+          background: #0c2d48;
+          border: 1px solid #1f6feb;
+          color: #79c0ff;
+        }
+        .toast-close:hover {
+          opacity: 1;
+          background: rgba(255, 255, 255, 0.1);
+        }
+        @keyframes toast-in {
+          from { opacity: 0; transform: translateX(40px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
       {items.map((item) => (
-        <div key={item.id} className={`${styles.toast} ${styles[`toast-${item.type}`] || ""}`} role="alert">
-          <span className={styles["toast-msg"]}>{item.message}</span>
-          <button className={styles["toast-close"]} onClick={() => dismiss(item.id)} aria-label="关闭">
+        <div key={item.id} className={`toast toast-${item.type}`} role="alert">
+          <span className="flex-1">{item.message}</span>
+          <button
+            className="flex-shrink-0 w-6 h-6 border-none bg-transparent text-inherit text-lg leading-none cursor-pointer opacity-70 flex items-center justify-center rounded"
+            onClick={() => dismiss(item.id)}
+            aria-label="关闭"
+          >
             &times;
           </button>
         </div>

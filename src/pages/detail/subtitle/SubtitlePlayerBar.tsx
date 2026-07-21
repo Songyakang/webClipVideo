@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import "./SubtitlePlayerBar.css";
 
 function fmt(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -60,49 +59,75 @@ export default function SubtitlePlayerBar({ videoEl, currentTime, onTimeUpdate, 
   );
 
   return (
-    <div className="subtitle-player-bar">
-      <button className="player-btn" onClick={() => skip(-5)} title="后退5秒">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="1 4 1 10 7 10" />
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-        </svg>
-      </button>
-      <button className="player-btn" onClick={togglePlay} title={playing ? "暂停" : "播放"}>
-        {playing ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" rx="1" />
-            <rect x="14" y="4" width="4" height="16" rx="1" />
+    <>
+      <style>{`
+        .player-btn:hover { background: #21262d; }
+        .player-volume input[type="range"] {
+          width: 60px;
+          height: 4px;
+          -webkit-appearance: none;
+          appearance: none;
+          background: #30363d;
+          border-radius: 2px;
+          outline: none;
+        }
+        .player-volume input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #58a6ff;
+          cursor: pointer;
+        }
+      `}</style>
+      <div
+        className="flex items-center gap-2.5 px-3 py-2"
+        style={{ borderBottom: "1px solid #21262d" }}
+      >
+        <button className="player-btn w-7 h-7 border-none bg-transparent cursor-pointer rounded flex items-center justify-center" style={{ color: "#c9d1d9", transition: "background 0.15s" }} onClick={() => skip(-5)} title="后退5秒">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
           </svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="6 4 20 12 6 20 6 4" />
+        </button>
+        <button className="player-btn w-7 h-7 border-none bg-transparent cursor-pointer rounded flex items-center justify-center" style={{ color: "#c9d1d9", transition: "background 0.15s" }} onClick={togglePlay} title={playing ? "暂停" : "播放"}>
+          {playing ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 4 20 12 6 20 6 4" />
+            </svg>
+          )}
+        </button>
+        <button className="player-btn w-7 h-7 border-none bg-transparent cursor-pointer rounded flex items-center justify-center" style={{ color: "#c9d1d9", transition: "background 0.15s" }} onClick={() => skip(5)} title="前进5秒">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
-        )}
-      </button>
-      <button className="player-btn" onClick={() => skip(5)} title="前进5秒">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="23 4 23 10 17 10" />
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-        </svg>
-      </button>
-      <div className="player-time">
-        <span>{fmt(currentTime)}</span> / {fmt(duration)}
+        </button>
+        <div className="text-xs tabular-nums min-w-[100px]" style={{ color: "#8b949e" }}>
+          <span style={{ color: "#e6edf3" }}>{fmt(currentTime)}</span> / {fmt(duration)}
+        </div>
+        <div className="flex-1" />
+        <div className="player-volume flex items-center gap-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "#8b949e" }}>
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+          </svg>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+          />
+        </div>
       </div>
-      <div className="player-spacer" />
-      <div className="player-volume">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "#8b949e" }}>
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-        </svg>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
-        />
-      </div>
-    </div>
+    </>
   );
 }

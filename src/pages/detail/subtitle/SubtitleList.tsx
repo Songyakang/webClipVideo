@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { SubtitleItem } from "../../../lib/types";
 import { formatTime } from "./utils";
-import "./SubtitleList.css";
 
 interface Props {
   items: SubtitleItem[];
@@ -42,9 +41,9 @@ export default function SubtitleList({
 
   if (items.length === 0) {
     return (
-      <div className="subtitle-list">
-        <div className="subtitle-list-empty">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.4 }}>
+      <div className="flex-1 overflow-y-auto flex flex-col gap-0.5">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-sm" style={{ color: "#484f58" }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-40">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             <line x1="8" y1="7" x2="16" y2="7" />
@@ -52,13 +51,13 @@ export default function SubtitleList({
           </svg>
           <span>暂无字幕</span>
         </div>
-        <button className="subtitle-list-add" onClick={onAdd}>+ 添加字幕</button>
+        <button className="subtitle-list-add mx-3 my-2 px-3 py-2 rounded text-[13px] cursor-pointer border border-dashed bg-transparent transition-colors duration-150" onClick={onAdd}>+ 添加字幕</button>
       </div>
     );
   }
 
   return (
-    <div className="subtitle-list" ref={listRef}>
+    <div className="flex-1 overflow-y-auto flex flex-col gap-0.5" ref={listRef}>
       {items.map((item, i) => {
         const isActive = currentTime >= item.startTime && currentTime <= item.endTime;
         const isEditing = editingId === item.id;
@@ -79,7 +78,7 @@ export default function SubtitleList({
           />
         );
       })}
-      <button className="subtitle-list-add" onClick={onAdd}>+ 添加字幕</button>
+      <button className="subtitle-list-add mx-3 my-2 px-3 py-2 rounded text-[13px] cursor-pointer border border-dashed bg-transparent transition-colors duration-150" onClick={onAdd}>+ 添加字幕</button>
     </div>
   );
 }
@@ -170,79 +169,111 @@ function SubtitleRow({
   };
 
   return (
-    <div className={`subtitle-row${isActive ? " active" : ""}`}>
-      <div className="sub-row-index">{index + 1}</div>
-      <div className="sub-row-body">
-        <div className="sub-row-time" onDoubleClick={() => startTimeEdit("start")}>
-          {editingTime === "start" ? (
-            <input
-              className="sub-row-time-input"
-              value={timeDraft}
-              onChange={(e) => setTimeDraft(e.target.value)}
-              onBlur={commitTimeEdit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitTimeEdit();
-                if (e.key === "Escape") setEditingTime(null);
+    <>
+      <style>{`
+        .subtitle-row { background: #161b22; border-color: transparent; }
+        .subtitle-row.active { background: #1a2a3d; border-color: #58a6ff; }
+        .subtitle-row:hover { background: #1c2129; }
+        .subtitle-row.active:hover { background: #1a2a3d; }
+        .sub-row-time { color: #58a6ff; }
+        .sub-row-time:hover { color: #79c0ff; text-decoration: underline; }
+        .sub-row-text { border: 1px solid transparent; }
+        .sub-row-text:hover { background: #0d1117; }
+        .sub-row-text.editing { background: #0d1117; border-color: #30363d; }
+        .sub-row-btn { color: #484f58; }
+        .sub-row-btn:hover { background: #21262d; color: #c9d1d9; }
+        .sub-row-btn.danger:hover { background: #da3633; color: #fff; }
+        .subtitle-list-add { border-color: #30363d; color: #8b949e; }
+        .subtitle-list-add:hover { border-color: #58a6ff; color: #58a6ff; }
+      `}</style>
+      <div
+        className={`subtitle-row group flex gap-2 px-3 py-2 rounded border transition-colors duration-150${isActive ? " active" : ""}`}
+      >
+        <div className="w-7 shrink-0 text-xs text-right pt-1 tabular-nums" style={{ color: "#484f58" }}>
+          {index + 1}
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <div
+            className="sub-row-time text-[11px] tabular-nums cursor-pointer select-none transition-colors duration-150"
+            onDoubleClick={() => startTimeEdit("start")}
+          >
+            {editingTime === "start" ? (
+              <input
+                className="w-[60px] px-1.5 py-0.5 rounded text-[11px] font-[inherit] outline-none"
+                style={{ background: "#0d1117", border: "1px solid #58a6ff", color: "#e6edf3" }}
+                value={timeDraft}
+                onChange={(e) => setTimeDraft(e.target.value)}
+                onBlur={commitTimeEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitTimeEdit();
+                  if (e.key === "Escape") setEditingTime(null);
+                }}
+                autoFocus
+              />
+            ) : (
+              formatTime(item.startTime)
+            )}
+            <span style={{ margin: "0 4px", color: "#30363d" }}>{'→'}</span>
+            {editingTime === "end" ? (
+              <input
+                className="w-[60px] px-1.5 py-0.5 rounded text-[11px] font-[inherit] outline-none"
+                style={{ background: "#0d1117", border: "1px solid #58a6ff", color: "#e6edf3" }}
+                value={timeDraft}
+                onChange={(e) => setTimeDraft(e.target.value)}
+                onBlur={commitTimeEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitTimeEdit();
+                  if (e.key === "Escape") setEditingTime(null);
+                }}
+                autoFocus
+              />
+            ) : (
+              <span onDoubleClick={() => startTimeEdit("end")}>
+                {formatTime(item.endTime)}
+              </span>
+            )}
+          </div>
+
+          {isEditing ? (
+            <textarea
+              ref={textareaRef}
+              className="w-full box-border rounded text-[13px] font-[inherit] leading-relaxed px-1.5 py-1 outline-none resize-none min-h-[28px]"
+              style={{ background: "#0d1117", border: "1px solid #58a6ff", color: "#e6edf3" }}
+              value={draftText}
+              onChange={(e) => {
+                setDraftText(e.target.value);
+                const el = e.target;
+                el.style.height = "auto";
+                el.style.height = el.scrollHeight + "px";
               }}
-              autoFocus
+              onBlur={commitText}
+              onKeyDown={handleKeyDown}
+              rows={1}
             />
           ) : (
-            formatTime(item.startTime)
-          )}
-          <span style={{ margin: "0 4px", color: "#30363d" }}>{'→'}</span>
-          {editingTime === "end" ? (
-            <input
-              className="sub-row-time-input"
-              value={timeDraft}
-              onChange={(e) => setTimeDraft(e.target.value)}
-              onBlur={commitTimeEdit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitTimeEdit();
-                if (e.key === "Escape") setEditingTime(null);
-              }}
-              autoFocus
-            />
-          ) : (
-            <span onDoubleClick={() => startTimeEdit("end")}>
-              {formatTime(item.endTime)}
-            </span>
+            <div
+              className={`sub-row-text text-[13px] leading-relaxed cursor-text whitespace-pre-wrap break-words px-1.5 py-1 rounded transition-colors duration-150${isEditing ? " editing" : ""}`}
+              style={{ color: "#c9d1d9" }}
+              onClick={onStartEdit}
+            >
+              {item.text || <span style={{ color: "#484f58", fontStyle: "italic" }}>空字幕</span>}
+            </div>
           )}
         </div>
-
-        {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            className="sub-row-textarea"
-            value={draftText}
-            onChange={(e) => {
-              setDraftText(e.target.value);
-              const el = e.target;
-              el.style.height = "auto";
-              el.style.height = el.scrollHeight + "px";
-            }}
-            onBlur={commitText}
-            onKeyDown={handleKeyDown}
-            rows={1}
-          />
-        ) : (
-          <div className="sub-row-text" onClick={onStartEdit}>
-            {item.text || <span style={{ color: "#484f58", fontStyle: "italic" }}>空字幕</span>}
-          </div>
-        )}
-      </div>
-      <div className="sub-row-actions">
-        {!isFirst && (
-          <button className="sub-row-btn" title="合并到上一条" onClick={onMergeUp}>
-            {'↑'}
+        <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          {!isFirst && (
+            <button className="sub-row-btn w-6 h-6 border-none bg-transparent cursor-pointer rounded flex items-center justify-center text-xs transition-colors duration-150" title="合并到上一条" onClick={onMergeUp}>
+              {'↑'}
+            </button>
+          )}
+          <button className="sub-row-btn w-6 h-6 border-none bg-transparent cursor-pointer rounded flex items-center justify-center text-xs transition-colors duration-150" title="拆分" onClick={onSplit}>
+            {'↕'}
           </button>
-        )}
-        <button className="sub-row-btn" title="拆分" onClick={onSplit}>
-          {'↕'}
-        </button>
-        <button className="sub-row-btn danger" title="删除" onClick={onDelete}>
-          {'×'}
-        </button>
+          <button className="sub-row-btn danger w-6 h-6 border-none bg-transparent cursor-pointer rounded flex items-center justify-center text-xs transition-colors duration-150" title="删除" onClick={onDelete}>
+            {'×'}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

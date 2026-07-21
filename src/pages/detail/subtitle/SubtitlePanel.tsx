@@ -9,7 +9,6 @@ import SubtitleList from "./SubtitleList";
 import SubtitleStyleEditor from "./SubtitleStyleEditor";
 import ExportModal from "./ExportModal";
 import InpaintModal from "./InpaintModal";
-import "./SubtitlePanel.css";
 
 let itemIdCounter = 0;
 function newItemId(): string {
@@ -264,13 +263,39 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
 
   return (
     <>
-      <div className="subtitle-panel-overlay" onClick={onClose} />
-      <div className="subtitle-panel">
-        <div className="sub-panel-header">
-          <h3>字幕</h3>
-          <div className="sub-panel-header-controls">
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        @keyframes progressIndeterminate {
+          0% { width: 0%; margin-left: 0; }
+          50% { width: 60%; margin-left: 20%; }
+          100% { width: 0%; margin-left: 100%; }
+        }
+        .sub-panel-btn { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; }
+        .sub-panel-btn:hover { background: #21262d; }
+        .sub-panel-btn.primary { background: #238636; color: #fff; border-color: rgba(240, 246, 252, 0.1); }
+        .sub-panel-btn.primary:hover { background: #2ea043; }
+        .sub-panel-btn.primary:disabled { background: #1a3a26; color: #6e7681; }
+        .sub-panel-lang-select { background: #161b22; border: 1px solid #30363d; color: #c9d1d9; }
+        .sub-panel-lang-select:focus { border-color: #58a6ff; }
+      `}</style>
+      <div className="fixed inset-0 z-80" style={{ background: "rgba(0,0,0,0.3)" }} onClick={onClose} />
+      <div
+        className="fixed top-0 right-0 bottom-0 w-[420px] z-[90] flex flex-col"
+        style={{
+          background: "#0d1117",
+          borderLeft: "1px solid #30363d",
+          boxShadow: "-4px 0 24px rgba(0,0,0,0.4)",
+          animation: "slideIn 0.2s ease-out",
+        }}
+      >
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #21262d" }}>
+          <h3 className="m-0 text-[15px] font-semibold" style={{ color: "#e6edf3" }}>字幕</h3>
+          <div className="flex items-center gap-2">
             <select
-              className="sub-panel-lang-select"
+              className="sub-panel-lang-select px-2 py-1 rounded text-xs cursor-pointer outline-none"
               value={track.language}
               onChange={(e) => dispatch({ type: "SET_LANGUAGE", language: e.target.value })}
               disabled={generating}
@@ -282,7 +307,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
             </select>
             {track.status === "empty" && (
               <button
-                className="sub-panel-btn primary"
+                className="sub-panel-btn primary px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150"
                 onClick={handleGenerate}
                 disabled={!videoEl || generating}
               >
@@ -290,32 +315,38 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
               </button>
             )}
             {(track.status === "ready" || track.status === "edited") && (
-              <button className="sub-panel-btn primary" onClick={handleGenerate} disabled={generating}>
+              <button className="sub-panel-btn primary px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150" onClick={handleGenerate} disabled={generating}>
                 重新生成
               </button>
             )}
             <button
-              className="sub-panel-btn"
+              className="sub-panel-btn px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150"
               onClick={() => setShowInpaint(true)}
               disabled={!videoAssetPath}
             >
               擦除字幕
             </button>
-            <button className="sub-panel-btn" onClick={onClose}>{'×'}</button>
+            <button className="sub-panel-btn px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150" onClick={onClose}>{'×'}</button>
           </div>
         </div>
 
         {generating && (
-          <div className="sub-panel-generating">
-            <div className="sub-panel-progress-bar">
-              <div className="sub-panel-progress-fill" />
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-sm" style={{ color: "#8b949e" }}>
+            <div className="w-[200px] h-1 rounded overflow-hidden" style={{ background: "#21262d" }}>
+              <div
+                className="h-full rounded"
+                style={{
+                  background: "#58a6ff",
+                  animation: "progressIndeterminate 1.5s ease-in-out infinite",
+                }}
+              />
             </div>
             <span>正在识别语音...</span>
           </div>
         )}
 
         {!generating && track.items.length === 0 && (
-          <div className="sub-panel-empty">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm" style={{ color: "#484f58" }}>
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.4 }}>
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
@@ -331,14 +362,14 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
           <>
             <div style={{ padding: "8px 16px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <button
-                className="sub-panel-btn"
+                className="sub-panel-btn px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150"
                 onClick={handleExtractVoice}
                 disabled={generating}
               >
                 {voiceProfile ? "✓ 已提取声纹" : "提取声音特征"}
               </button>
               <select
-                className="sub-panel-lang-select"
+                className="sub-panel-lang-select px-2 py-1 rounded text-xs cursor-pointer outline-none"
                 value={selectedVoice}
                 onChange={(e) => setSelectedVoice(e.target.value)}
                 style={{ fontSize: 12 }}
@@ -351,7 +382,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
                 <option value="zh-CN-YunxiaNeural">云夏 (男)</option>
               </select>
               <button
-                className="sub-panel-btn primary"
+                className="sub-panel-btn primary px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150"
                 onClick={handleGenerateSpeech}
                 disabled={synthesizing || (selectedVoice === "original" && !voiceProfile)}
               >
@@ -405,7 +436,7 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
           <>
             <SubtitleStyleEditor style={subtitleStyle} onChange={setSubtitleStyle} />
             <div style={{ padding: "12px 16px", borderTop: "1px solid #21262d" }}>
-              <button className="sub-panel-btn primary" style={{ width: "100%" }} onClick={handleExport}>
+              <button className="sub-panel-btn primary px-3 py-1 rounded text-xs cursor-pointer transition-colors duration-150" style={{ width: "100%" }} onClick={handleExport}>
                 导出字幕 / 烧录
               </button>
             </div>

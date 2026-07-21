@@ -1,6 +1,5 @@
 import { useRef, useCallback, useState } from "react";
 import type { SubtitleItem } from "../../../lib/types";
-import "./SubtitleTimeline.css";
 
 interface Props {
   items: SubtitleItem[];
@@ -116,54 +115,88 @@ export default function SubtitleTimeline({
   }
 
   return (
-    <div
-      className="subtitle-timeline"
-      ref={containerRef}
-      onClick={handleClick}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      <div className="timeline-ruler">
-        {ticks.map((t) => (
-          <div key={t} style={{ left: timeToX(t), position: "absolute" }}>
-            <div className="timeline-tick-line" />
-            <span className="timeline-tick">
-              {String(Math.floor(t / 60)).padStart(2, "0")}:
-              {String(Math.floor(t % 60)).padStart(2, "0")}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="timeline-blocks">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className={`timeline-block${activeItemId === item.id ? " active" : ""}`}
-            style={{
-              left: timeToX(item.startTime),
-              width: Math.max(4, timeToX(item.endTime) - timeToX(item.startTime)),
-            }}
-            onMouseDown={(e) => handleBlockMouseDown(e, item)}
-          >
-            <div
-              className="timeline-block-resize-left"
-              onMouseDown={(e) => handleResizeMouseDown(e, item, "resize-left")}
-            />
-            <div className="timeline-block-label">{item.text.substring(0, 20)}</div>
-            <div
-              className="timeline-block-resize-right"
-              onMouseDown={(e) => handleResizeMouseDown(e, item, "resize-right")}
-            />
-          </div>
-        ))}
-      </div>
-
+    <>
+      <style>{`
+        .timeline-block:hover { opacity: 1; }
+        .timeline-playhead::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: -4px;
+          width: 9px;
+          height: 9px;
+          background: #f85149;
+          border-radius: 2px;
+          transform: rotate(45deg);
+        }
+      `}</style>
       <div
-        className="timeline-playhead"
-        style={{ left: timeToX(currentTime) }}
-      />
-    </div>
+        className="relative h-20 cursor-pointer overflow-hidden select-none"
+        ref={containerRef}
+        style={{ background: "#0d1117", borderBottom: "1px solid #21262d" }}
+        onClick={handleClick}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        <div
+          className="absolute top-0 left-0 right-0 h-5 flex pointer-events-none"
+          style={{ borderBottom: "1px solid #21262d" }}
+        >
+          {ticks.map((t) => (
+            <div key={t} style={{ left: timeToX(t), position: "absolute" }}>
+              <div
+                className="absolute top-0 bottom-0 w-px"
+                style={{ background: "#21262d" }}
+              />
+              <span
+                className="absolute bottom-0.5 text-[9px] tabular-nums"
+                style={{ color: "#484f58" }}
+              >
+                {String(Math.floor(t / 60)).padStart(2, "0")}:
+                {String(Math.floor(t % 60)).padStart(2, "0")}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="absolute top-5 left-0 right-0 bottom-0">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="timeline-block absolute top-1 bottom-1 rounded opacity-80 transition-opacity duration-100 cursor-grab overflow-hidden"
+              style={{
+                background: activeItemId === item.id ? "#1f3d5e" : "#1a2a3d",
+                border: `1px solid ${activeItemId === item.id ? "#79c0ff" : "#58a6ff"}`,
+                left: timeToX(item.startTime),
+                width: Math.max(4, timeToX(item.endTime) - timeToX(item.startTime)),
+                zIndex: activeItemId === item.id ? 3 : 1,
+              }}
+              onMouseDown={(e) => handleBlockMouseDown(e, item)}
+            >
+              <div
+                className="absolute top-0 bottom-0 w-[6px] cursor-col-resize z-[2] left-0"
+                onMouseDown={(e) => handleResizeMouseDown(e, item, "resize-left")}
+              />
+              <div
+                className="text-[9px] px-1 py-px truncate pointer-events-none"
+                style={{ color: "#8b949e" }}
+              >
+                {item.text.substring(0, 20)}
+              </div>
+              <div
+                className="absolute top-0 bottom-0 w-[6px] cursor-col-resize z-[2] right-0"
+                onMouseDown={(e) => handleResizeMouseDown(e, item, "resize-right")}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="timeline-playhead absolute top-0 bottom-0 w-px z-[5] pointer-events-none"
+          style={{ background: "#f85149", left: timeToX(currentTime) }}
+        />
+      </div>
+    </>
   );
 }
