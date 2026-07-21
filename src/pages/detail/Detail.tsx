@@ -143,14 +143,14 @@ export default function Detail() {
         onConnect={addEdge}
         onNodeClick={(_e, node) => {
           setSelectedNode(node as FlowNode);
-          rfInstance.current?.setNodes((nds) =>
+          setNodes((nds) =>
             nds.map((n) => ({ ...n, selected: n.id === node.id })),
           );
         }}
         onNodeDoubleClick={handleNodeDoubleClick}
         onPaneClick={() => {
           setSelectedNode(null);
-          rfInstance.current?.setNodes((nds) =>
+          setNodes((nds) =>
             nds.map((n) => ({ ...n, selected: false })),
           );
         }}
