@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -124,7 +124,25 @@ export default function Detail() {
 
   if (!clip) return null;
 
-  const showToolbox = selectedNode && selectedNode.data?.type === "image";
+  const toolboxStyle = useMemo(() => {
+    if (!selectedNode) return null;
+    const nodeType = selectedNode.data?.type;
+    if (nodeType !== "image" && nodeType !== "image-upload" && nodeType !== "text") return null;
+
+    const el = document.querySelector(`.react-flow__node[data-id="${selectedNode.id}"]`);
+    const container = containerRef.current;
+    if (!el || !container) return null;
+
+    const nodeRect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    return {
+      position: "absolute" as const,
+      left: nodeRect.left - containerRect.left + nodeRect.width / 2,
+      top: nodeRect.bottom - containerRect.top + 8,
+      transform: "translateX(-50%)",
+    };
+  }, [selectedNode, nodes]);
   const selectedVideoNode =
     selectedNode &&
     (selectedNode.data?.type === "video" || selectedNode.data?.type === "video-upload")
@@ -199,8 +217,8 @@ export default function Detail() {
 
       <TitleEditor clip={clip} onUpdate={setClip} />
 
-      {showToolbox && (
-        <ImageToolbox style={{ position: "fixed", left: "50%", bottom: 16, transform: "translateX(-50%)" }} />
+      {toolboxStyle && (
+        <ImageToolbox style={toolboxStyle} />
       )}
 
       {editNode && (
