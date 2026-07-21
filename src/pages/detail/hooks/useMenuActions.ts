@@ -6,6 +6,7 @@ interface MenuActionDeps {
   menu: MenuState | null;
   setMenu: (m: MenuState | null) => void;
   nodes: FlowNode[];
+  selectedNodes: FlowNode[];
   addNode: (type: string, x: number, y: number, fileUrl?: string) => string;
   deleteNode: (nodeId: string) => void;
   duplicateNode: (nodeId: string) => void;
@@ -16,7 +17,7 @@ interface MenuActionDeps {
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -47,9 +48,15 @@ export function useMenuActions(deps: MenuActionDeps) {
         setMenu(null);
         break;
       case "删除":
-        if (menu.nodeId) deleteNode(menu.nodeId);
+      case "删除选中": {
+        if (selectedNodes.length > 1) {
+          selectedNodes.forEach((n) => deleteNode(n.id));
+        } else if (menu.nodeId) {
+          deleteNode(menu.nodeId);
+        }
         setMenu(null);
         break;
+      }
       case "复制节点":
       case "创建副本":
         if (menu.nodeId) duplicateNode(menu.nodeId);
@@ -58,7 +65,7 @@ export function useMenuActions(deps: MenuActionDeps) {
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef]);
 
   return { handleMenuAction };
 }

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 interface Args {
   edgeToDelete: { id: string; x: number; y: number } | null;
-  selectedNode: { id: string } | null;
+  selectedNodes: { id: string }[];
   setMenu: (m: null) => void;
   setEdgeToDelete: (e: null) => void;
   deleteNode: (id: string) => void;
@@ -11,7 +11,7 @@ interface Args {
 
 export function useKeyboardShortcuts({
   edgeToDelete,
-  selectedNode,
+  selectedNodes,
   setMenu,
   setEdgeToDelete,
   deleteNode,
@@ -27,10 +27,10 @@ export function useKeyboardShortcuts({
       if ((e.key === "Delete" || e.key === "Backspace") && !isInput) {
         e.preventDefault();
         if (edgeToDelete) { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }
-        else if (selectedNode) { deleteNode(selectedNode.id); }
+        else if (selectedNodes.length > 0) { selectedNodes.forEach((n) => deleteNode(n.id)); }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [edgeToDelete, selectedNode, setMenu, setEdgeToDelete, deleteNode, removeEdge]);
+  }, [edgeToDelete, selectedNodes, setMenu, setEdgeToDelete, deleteNode, removeEdge]);
 }

@@ -50,7 +50,7 @@ export default function Detail() {
   const { menu, setMenu } = useContextMenu();
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
+  const [selectedNodes, setSelectedNodes] = useState<FlowNode[]>([]);
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export default function Detail() {
   }, [viewportCenter]);
 
   const { addNode, deleteNode, duplicateNode, addEdge, removeEdge } = useNodeOperations(
-    id!, setNodes, setEdges, setSelectedNode, nodeIdCounterRef, edgeIdCounterRef
+    id!, setNodes, setEdges, setSelectedNodes, nodeIdCounterRef, edgeIdCounterRef
   );
 
   const { resizeMediaNode } = useMediaResizer(setNodes);
@@ -91,14 +91,14 @@ export default function Detail() {
   const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
 
   const { handleMenuAction } = useMenuActions({
-    menu, setMenu, nodes,
+    menu, setMenu, nodes, selectedNodes,
     addNode, deleteNode, duplicateNode,
     screenToFlow, generate3DFromImage,
     uploadPosRef, fileInputRef,
   });
 
   useKeyboardShortcuts({
-    edgeToDelete, selectedNode,
+    edgeToDelete, selectedNodes,
     setMenu, setEdgeToDelete,
     deleteNode, removeEdge,
   });
@@ -109,7 +109,7 @@ export default function Detail() {
     if (node.type === "director") {
       setDirectorNodeId(node.id);
     } else if (node.type === "text") {
-      setSelectedNode(null);
+      setSelectedNodes([]);
       setNodes((nds) =>
         nds.map((n) =>
           n.id === node.id
@@ -123,9 +123,9 @@ export default function Detail() {
   if (!clip) return null;
 
   const selectedVideoNode =
-    selectedNode &&
-    (selectedNode.data?.type === "video" || selectedNode.data?.type === "video-upload")
-      ? selectedNode
+    selectedNodes.length === 1 &&
+    (selectedNodes[0].data?.type === "video" || selectedNodes[0].data?.type === "video-upload")
+      ? selectedNodes[0]
       : null;
   return (
     <div className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing" style={{ backgroundColor: "#0d1117" }} ref={containerRef}>
@@ -189,23 +189,26 @@ export default function Detail() {
         onEdgesChange={onEdgesChange}
         onConnect={addEdge}
         onNodeClick={(_e, node) => {
-          setSelectedNode(node as FlowNode);
+          setSelectedNodes([node as FlowNode]);
           setNodes((nds) =>
             nds.map((n) => ({ ...n, selected: n.id === node.id })),
           );
         }}
         onNodeDoubleClick={handleNodeDoubleClick}
         onPaneClick={() => {
-          setSelectedNode(null);
+          setSelectedNodes([]);
           setNodes((nds) =>
             nds.map((n) => ({ ...n, selected: false })),
           );
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();
-          setSelectedNode(node as FlowNode);
+          // If right-clicked node is not in current multi-select, select only it
+          if (!selectedNodes.some((n) => n.id === node.id)) {
+            setSelectedNodes([node as FlowNode]);
+          }
           setNodes((nds) =>
-            nds.map((n) => ({ ...n, selected: n.id === node.id })),
+            nds.map((n) => ({ ...n, selected: n.id === node.id || selectedNodes.some((s) => s.id === n.id) })),
           );
           setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
         }}
@@ -218,7 +221,7 @@ export default function Detail() {
         }}
         onInit={(instance) => { rfInstance.current = instance; }}
         onSelectionChange={({ nodes: sel }) => {
-          setSelectedNode(sel.length === 1 ? sel[0] as FlowNode : null);
+          setSelectedNodes(sel as FlowNode[]);
         }}
         nodeTypes={nodeTypes}
         fitView={false}
@@ -288,7 +291,7 @@ export default function Detail() {
             onClick={() => setMenu(null)}
             onContextMenu={(e) => e.preventDefault()}
           />
-          <ContextMenus menu={menu} onAction={handleMenuAction} />
+          <ContextMenus menu={menu} onAction={handleMenuAction} selectedCount={selectedNodes.length} />
         </>
       )}
     </div>

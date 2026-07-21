@@ -7,7 +7,7 @@ export function useNodeOperations(
   projectId: string,
   setNodes: React.Dispatch<React.SetStateAction<FlowNode[]>>,
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>,
-  setSelectedNode: (n: FlowNode | null) => void,
+  setSelectedNodes: (ns: FlowNode[]) => void,
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
@@ -25,9 +25,9 @@ export function useNodeOperations(
   const deleteNode = useCallback((nodeId: string) => {
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e: Edge) => e.source !== nodeId && e.target !== nodeId));
-    setSelectedNode(null);
+    setSelectedNodes([]);
     deleteAssetDir(projectId, nodeId);
-  }, [projectId, setNodes, setEdges, setSelectedNode]);
+  }, [projectId, setNodes, setEdges, setSelectedNodes]);
 
   const duplicateNode = useCallback((nodeId: string) => {
     setNodes((prev) => {
