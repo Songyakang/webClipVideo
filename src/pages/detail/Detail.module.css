@@ -390,10 +390,19 @@ textarea {
   display: flex;
   flex-direction: row;
   gap: 2px;
+  left: 50% !important;
+  transform: translateX(-50%);
 }
 
 :global(.flow-controls .react-flow__controls-button) {
   width: 28px;
   height: 28px;
   border-bottom: none;
+  background: #000;
+  color: #fff;
+  fill: #fff;
+}
+
+:global(.flow-controls .react-flow__controls-button:hover) {
+  background: #333;
 }
