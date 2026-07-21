@@ -156,6 +156,10 @@ export default function Detail() {
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();
+          setSelectedNode(node as FlowNode);
+          setNodes((nds) =>
+            nds.map((n) => ({ ...n, selected: n.id === node.id })),
+          );
           setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
         }}
         onPaneContextMenu={(e) => {
