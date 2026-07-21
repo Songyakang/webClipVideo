@@ -228,6 +228,7 @@ export default function Detail() {
         minZoom={0.2}
         maxZoom={3}
         zoomOnScroll={false}
+        panOnScroll={true}
         selectionMode={SelectionMode.Partial}
         deleteKeyCode={null}
         multiSelectionKeyCode="Shift"
