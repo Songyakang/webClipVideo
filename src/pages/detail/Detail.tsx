@@ -32,7 +32,7 @@ import SubtitleOverlay from "./SubtitleOverlay";
 import DirectorOverlay from "./DirectorOverlay";
 import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
-import EditOverlay from "./EditOverlay";
+
 
 const nodeTypes: NodeTypes = {
   text: TextNode,
@@ -52,7 +52,7 @@ export default function Detail() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+
   const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [zoom, setZoom] = useState(0.5);
@@ -98,8 +98,8 @@ export default function Detail() {
   });
 
   useKeyboardShortcuts({
-    editingNodeId, edgeToDelete, selectedNode,
-    setMenu, setEditingNodeId, setEdgeToDelete,
+    edgeToDelete, selectedNode,
+    setMenu, setEdgeToDelete,
     deleteNode, removeEdge,
   });
 
@@ -110,17 +110,15 @@ export default function Detail() {
       setDirectorNodeId(node.id);
     } else if (node.type === "text") {
       setSelectedNode(null);
-      setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
-      setEditingNodeId(node.id);
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === node.id
+            ? { ...n, selected: false, data: { ...n.data, isEditing: true } }
+            : { ...n, selected: false },
+        ),
+      );
     }
   }, []);
-
-  const commitEdit = useCallback((text: string) => {
-    if (editingNodeId) {
-      setNodes((prev) => prev.map((n) => n.id === editingNodeId ? { ...n, data: { ...n.data, content: text } } : n));
-    }
-    setEditingNodeId(null);
-  }, [editingNodeId, setNodes]);
 
   if (!clip) return null;
 
@@ -129,8 +127,6 @@ export default function Detail() {
     (selectedNode.data?.type === "video" || selectedNode.data?.type === "video-upload")
       ? selectedNode
       : null;
-  const editNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
-
   return (
     <div className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing" style={{ backgroundColor: "#0d1117" }} ref={containerRef}>
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
@@ -268,10 +264,6 @@ export default function Detail() {
       />
 
       <TitleEditor clip={clip} onUpdate={setClip} />
-
-      {editNode && (
-        <EditOverlay node={editNode} onCommit={commitEdit} rfInstance={rfInstance} />
-      )}
 
       <EdgeDeleteButton
         edgeToDelete={edgeToDelete}
