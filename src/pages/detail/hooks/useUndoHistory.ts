@@ -9,13 +9,19 @@ interface Snapshot {
 
 const MAX_HISTORY = 50;
 
-function clone(nodes: FlowNode[], edges: Edge[]): Snapshot {
-  // Strip videoEl DOM refs before serializing
-  const cleanNodes = nodes.map((n) => {
-    const { videoEl, ...data } = n.data || {};
-    return { ...n, data };
-  });
-  return JSON.parse(JSON.stringify({ nodes: cleanNodes, edges }));
+/** Lightweight clone: only copies fields we care about for undo. */
+function cloneSnapshot(nodes: FlowNode[], edges: Edge[]): Snapshot {
+  return {
+    nodes: nodes.map((n) => {
+      const { videoEl, ...data } = n.data || {};
+      return {
+        ...n,
+        position: { ...n.position },
+        data: { ...data },
+      };
+    }),
+    edges: edges.map((e) => ({ ...e })),
+  };
 }
 
 export function useUndoHistory() {
@@ -24,20 +30,19 @@ export function useUndoHistory() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const currentRef = useRef<Snapshot | null>(null);
+  const lastCountRef = useRef({ nodes: 0, edges: 0 });
 
   const push = useCallback((nodes: FlowNode[], edges: Edge[]) => {
-    const snap = clone(nodes, edges);
-    const curr = currentRef.current;
+    // Skip if nothing changed (fast count check instead of JSON compare)
+    if (lastCountRef.current.nodes === nodes.length && lastCountRef.current.edges === edges.length) return;
+    lastCountRef.current = { nodes: nodes.length, edges: edges.length };
 
-    // Deduplicate: skip if identical to current state
-    if (curr && JSON.stringify(curr) === JSON.stringify(snap)) return;
-
-    if (curr) {
-      pastRef.current.push(curr);
+    if (currentRef.current) {
+      pastRef.current.push(currentRef.current);
       if (pastRef.current.length > MAX_HISTORY) pastRef.current.shift();
     }
     futureRef.current = [];
-    currentRef.current = snap;
+    currentRef.current = cloneSnapshot(nodes, edges);
     setCanUndo(true);
     setCanRedo(false);
   }, []);
@@ -51,7 +56,7 @@ export function useUndoHistory() {
     currentRef.current = prev;
     setCanUndo(past.length > 0);
     setCanRedo(true);
-    return JSON.parse(JSON.stringify(prev)) as Snapshot;
+    return cloneSnapshot(prev.nodes, prev.edges);
   }, []);
 
   const redo = useCallback(() => {
@@ -63,7 +68,7 @@ export function useUndoHistory() {
     currentRef.current = next;
     setCanUndo(true);
     setCanRedo(future.length > 0);
-    return JSON.parse(JSON.stringify(next)) as Snapshot;
+    return cloneSnapshot(next.nodes, next.edges);
   }, []);
 
   return { push, undo, redo, canUndo, canRedo };

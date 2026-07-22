@@ -1,7 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
-export default function VideoNode({ data, selected }: NodeProps) {
+export default memo(function VideoNode({ data, selected }: NodeProps) {
   const d = data as any;
 
   const videoRefCallback = useCallback((el: HTMLVideoElement | null) => {
@@ -40,4 +40,4 @@ export default function VideoNode({ data, selected }: NodeProps) {
       <Handle type="source" position={Position.Right} className="flow-handle" />
     </div>
   );
-}
+});

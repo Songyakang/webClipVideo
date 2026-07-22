@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -98,13 +98,21 @@ export default function Detail() {
 
   const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
 
+  const onUndo = useMemo(() => () => {
+    const snap = undo();
+    if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+  }, [undo, setNodes, setEdges]);
+  const onRedo = useMemo(() => () => {
+    const snap = redo();
+    if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+  }, [redo, setNodes, setEdges]);
+
   const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes, selectedNodes,
     addNode, deleteNode, duplicateNode,
     screenToFlow, generate3DFromImage,
     uploadPosRef, fileInputRef,
-    onUndo: () => { const snap = undo(); if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); } },
-    onRedo: () => { const snap = redo(); if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); } },
+    onUndo, onRedo,
   });
 
   useKeyboardShortcuts({

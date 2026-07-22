@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import ImageToolbox from "../ImageToolbox";
 
-export default function TextNode({ data, selected, dragging }: NodeProps) {
+export default memo(function TextNode({ data, selected, dragging }: NodeProps) {
   const d = data as any;
   const w = d.w || 700;
   const h = d.h || 400;
@@ -63,4 +63,4 @@ export default function TextNode({ data, selected, dragging }: NodeProps) {
       )}
     </div>
   );
-}
+});
