@@ -252,6 +252,10 @@ export default function Detail() {
         }}
         onPaneContextMenu={(e) => {
           e.preventDefault();
+          setSelectedNodes([]);
+          setNodes((nds) =>
+            nds.map((n) => ({ ...n, selected: false })),
+          );
           setMenu({ x: e.clientX, y: e.clientY, type: "main" });
         }}
         onEdgeClick={(e, edge) => {
