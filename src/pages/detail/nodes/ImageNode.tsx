@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import ImageToolbox from "../ImageToolbox";
 
-export default memo(function ImageNode({ data, selected, dragging }: NodeProps) {
+export default memo(function ImageNode({ id, data, selected, dragging }: NodeProps) {
   const d = data as any;
   const w = d.w || 700;
   const h = d.h || 400;
@@ -30,7 +30,7 @@ export default memo(function ImageNode({ data, selected, dragging }: NodeProps) 
       <Handle type="source" position={Position.Right} className="flow-handle" />
       {selected && !dragging && (
         <div className="node-toolbox-wrapper">
-          <ImageToolbox />
+          <ImageToolbox nodeId={id} nodeType="image" />
         </div>
       )}
     </div>

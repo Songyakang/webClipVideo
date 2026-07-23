@@ -20,6 +20,8 @@ import { useNodeOperations } from "./hooks/useNodeOperations";
 import { useFileUpload } from "./hooks/useFileUpload";
 import { useMediaResizer } from "./hooks/useMediaResizer";
 import { useGenerate3D } from "./hooks/useGenerate3D";
+import { useGenerateImage } from "./hooks/useGenerateImage";
+import { GenerateContext } from "./hooks/GenerateContext";
 import { useMenuActions } from "./hooks/useMenuActions";
 import { useUndoHistory } from "./hooks/useUndoHistory";
 import ContextMenus from "./ContextMenus";
@@ -97,6 +99,8 @@ export default function Detail() {
   const { fileInputRef, uploadPosRef, handleFileChange } = useFileUpload(id!, addNode, setNodes, resizeMediaNode);
 
   const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
+
+  const { generateImage, generatingNodeId } = useGenerateImage(id!, setNodes, setEdges, nodesRef, edgesRef);
 
   const onUndo = useMemo(() => () => {
     const snap = undo();
@@ -177,6 +181,7 @@ export default function Detail() {
       ? selectedNodes[0]
       : null;
   return (
+    <GenerateContext.Provider value={{ generateImage, generatingNodeId }}>
     <div className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing" style={{ backgroundColor: "#0d1117" }} ref={containerRef}>
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
 
@@ -346,5 +351,6 @@ export default function Detail() {
         </>
       )}
     </div>
+    </GenerateContext.Provider>
   );
 }
