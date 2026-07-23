@@ -91,6 +91,22 @@ export async function deleteProjectAssets(projectId: string): Promise<void> {
   }
 }
 
+export async function loadThumbnailUrl(relativePath: string): Promise<string> {
+  if (!isTauri() || !relativePath) return "";
+  try {
+    const { documentDir } = await import("@tauri-apps/api/path");
+    const { join } = await import("@tauri-apps/api/path");
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const docDir = await documentDir();
+    const fullPath = await join(docDir, "editor-tarui", relativePath);
+    const data = await readFile(fullPath);
+    const blob = new Blob([data], { type: "image/jpeg" });
+    return URL.createObjectURL(blob);
+  } catch {
+    return "";
+  }
+}
+
 export async function deleteAssetDir(projectId: string, nodeId: string): Promise<void> {
   if (!isTauri()) return;
   const baseDir = await ensureAssetDir();

@@ -120,3 +120,11 @@ export interface GenerateImageResult {
 export interface OptimizePromptResult {
   optimized_prompt: string;
 }
+
+export interface AssetInfo {
+  relative_path: string;
+  filename: string;
+  asset_type: "image" | "video";
+  size: number;
+  node_id: string;
+}
