@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chrome": {
+      "command": "mcp-chrome-stdio",
+      "args": []
+    }
+  }
+}
