@@ -1,16 +1,24 @@
-import { useCallback, memo } from "react";
+import { useCallback, useReducer, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import VideoTrimmer from "../VideoTrimmer";
 
 export default memo(function VideoNode({ data, selected }: NodeProps) {
   const d = data as any;
-
-  const videoRefCallback = useCallback((el: HTMLVideoElement | null) => {
-    d.videoEl = el;
-  }, []);
   const w = d.w || 700;
   const h = d.h || 400;
   const isUpload = d.type === "video-upload";
   const hasSrc = isUpload && d.fileUrl;
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+
+  const videoRefCallback = useCallback((el: HTMLVideoElement | null) => {
+    d.videoEl = el;
+  }, []);
+
+  const handleTrimmed = useCallback((newFileUrl: string, newAssetPath: string) => {
+    d.fileUrl = newFileUrl;
+    d.assetPath = newAssetPath;
+    forceUpdate();
+  }, []);
 
   return (
     <div
@@ -21,6 +29,7 @@ export default memo(function VideoNode({ data, selected }: NodeProps) {
       {hasSrc ? (
         <div className="node-video-wrap" style={{ width: w, height: h }}>
           <video
+            key={d.fileUrl}
             ref={videoRefCallback}
             src={d.fileUrl}
             playsInline
@@ -38,6 +47,16 @@ export default memo(function VideoNode({ data, selected }: NodeProps) {
         </div>
       )}
       <Handle type="source" position={Position.Right} className="flow-handle" />
+
+      {selected && hasSrc && d.assetPath && (
+        <div className="node-toolbox-wrapper">
+          <VideoTrimmer
+            videoEl={d.videoEl || null}
+            assetPath={d.assetPath}
+            onTrimmed={handleTrimmed}
+          />
+        </div>
+      )}
     </div>
   );
 });

@@ -35,6 +35,9 @@ import SubtitleOverlay from "./SubtitleOverlay";
 import DirectorOverlay from "./DirectorOverlay";
 import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
+import AssetLibrary from "./AssetLibrary";
+import CanvasPreview from "./CanvasPreview";
+import { getAssetSrc } from "../../lib/assets";
 
 
 const nodeTypes: NodeTypes = {
@@ -59,6 +62,8 @@ export default function Detail() {
   const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [zoom, setZoom] = useState(0.5);
+  const [showAssetLibrary, setShowAssetLibrary] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const rfInstance = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
@@ -101,6 +106,93 @@ export default function Detail() {
   const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
 
   const { generateImage, generatingNodeId } = useGenerateImage(id!, setNodes, setEdges, nodesRef, edgesRef);
+
+  const handleAddImageFromLibrary = useCallback((fileUrl: string, assetPath: string, x: number, y: number) => {
+    const nid = `node-${++nodeIdCounterRef.current}`;
+    setNodes((prev) => [...prev, {
+      id: nid, type: "image-upload",
+      position: { x: x - 350, y: y - 200 },
+      data: { type: "image-upload", content: "", fileUrl, assetPath },
+    }]);
+  }, [setNodes]);
+
+  const handleAddVideoFromLibrary = useCallback((fileUrl: string, assetPath: string, x: number, y: number) => {
+    const nid = `node-${++nodeIdCounterRef.current}`;
+    setNodes((prev) => [...prev, {
+      id: nid, type: "video-upload",
+      position: { x: x - 350, y: y - 200 },
+      data: { type: "video-upload", content: "", fileUrl, assetPath },
+    }]);
+  }, [setNodes]);
+
+  // Tauri native drag-drop listener
+  const unlistenRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        unlistenRef.current = await getCurrentWebview().onDragDropEvent(async (event) => {
+          const { type } = event.payload;
+
+          if (type === "over") {
+            setDragOver(true);
+          } else if (type === "leave") {
+            setDragOver(false);
+          } else if (type === "drop") {
+            setDragOver(false);
+            const paths = event.payload.paths;
+            const pos = screenToFlow(
+              event.payload.position.x,
+              event.payload.position.y,
+            );
+
+            for (let i = 0; i < paths.length; i++) {
+              const srcPath = paths[i];
+              const ext = srcPath.split(".").pop()?.toLowerCase() || "";
+              const isVideo = ["mp4", "mov", "avi", "webm", "mkv", "flv", "wmv"].includes(ext);
+              const nodeType = isVideo ? "video-upload" : "image-upload";
+              const nid = addNode(nodeType, pos.x + i * 30, pos.y + i * 30, "");
+
+              try {
+                const { readFile, writeFile, mkdir } = await import("@tauri-apps/plugin-fs");
+                const { documentDir, join } = await import("@tauri-apps/api/path");
+                const data = await readFile(srcPath);
+                const docDir = await documentDir();
+                const destDir = await join(docDir, "editor-tarui", "assets", id!, nid);
+                await mkdir(destDir, { recursive: true });
+                const filename = `${Date.now()}.${ext}`;
+                const destPath = await join(destDir, filename);
+                await writeFile(destPath, data);
+                const assetPath = `${id!}/${nid}/${filename}`;
+                const url = await getAssetSrc(assetPath);
+                if (url) {
+                  if (isVideo) {
+                    setNodes((prev) =>
+                      prev.map((n) =>
+                        n.id === nid ? { ...n, data: { ...n.data, fileUrl: url, assetPath } } : n,
+                      ),
+                    );
+                  } else {
+                    resizeMediaNode(nid, nodeType, url);
+                    setNodes((prev) =>
+                      prev.map((n) =>
+                        n.id === nid ? { ...n, data: { ...n.data, fileUrl: url, assetPath } } : n,
+                      ),
+                    );
+                  }
+                }
+              } catch (err) {
+                console.error("drag-drop save failed:", err);
+              }
+            }
+          }
+        });
+      } catch { /* Tauri API not available */ }
+    })();
+    return () => { unlistenRef.current?.(); unlistenRef.current = null; };
+  }, []);
+
+  const [dragOver, setDragOver] = useState(false);
 
   const onUndo = useMemo(() => () => {
     const snap = undo();
@@ -182,7 +274,11 @@ export default function Detail() {
       : null;
   return (
     <GenerateContext.Provider value={{ generateImage, generatingNodeId }}>
-    <div className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing" style={{ backgroundColor: "#0d1117" }} ref={containerRef}>
+    <div
+      className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing"
+      style={{ backgroundColor: "#0d1117" }}
+      ref={containerRef}
+    >
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
 
       <style>{`
@@ -296,9 +392,43 @@ export default function Detail() {
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
       </ReactFlow>
 
-      <CustomControls rfInstance={rfInstance} zoom={zoom} className="custom-controls absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-black rounded-lg p-0.5 select-none" />
+      <CustomControls
+        rfInstance={rfInstance}
+        zoom={zoom}
+        assetLibraryOpen={showAssetLibrary}
+        onToggleAssetLibrary={() => setShowAssetLibrary((v) => !v)}
+        onPreview={() => setShowPreview(true)}
+        className="custom-controls absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-black rounded-lg p-0.5 select-none"
+      />
 
       <button className="btn-back fixed top-4 left-4 z-10 cursor-pointer px-4 py-2 rounded-lg select-none text-sm" onClick={() => navigate("/")}>&larr; 返回</button>
+      {showAssetLibrary && (
+        <>
+          <div
+            className="fixed inset-0 z-20"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+            onClick={() => setShowAssetLibrary(false)}
+          />
+          <div
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30"
+            style={{ boxShadow: "0 8px 48px rgba(0,0,0,0.7)" }}
+          >
+            <AssetLibrary
+              viewportCenter={viewportCenter}
+              onAddImageNode={handleAddImageFromLibrary}
+              onAddVideoNode={handleAddVideoFromLibrary}
+              onClose={() => setShowAssetLibrary(false)}
+            />
+          </div>
+        </>
+      )}
+      {showPreview && (
+        <CanvasPreview
+          nodes={nodes}
+          edges={edges}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
 
       {selectedVideoNode && (
         <button
@@ -349,6 +479,22 @@ export default function Detail() {
           />
           <ContextMenus menu={menu} onAction={handleMenuAction} selectedCount={selectedNodes.length} />
         </>
+      )}
+
+      {dragOver && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          style={{ background: "rgba(88, 166, 255, 0.08)", border: "2px dashed #58a6ff", margin: 12, borderRadius: 16 }}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span style={{ color: "#58a6ff", fontSize: 16, fontWeight: 600 }}>拖放文件到此处上传</span>
+          </div>
+        </div>
       )}
     </div>
     </GenerateContext.Provider>

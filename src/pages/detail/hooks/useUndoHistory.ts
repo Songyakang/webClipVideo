@@ -9,7 +9,6 @@ interface Snapshot {
 
 const MAX_HISTORY = 50;
 
-/** Lightweight clone: only copies fields we care about for undo. */
 function cloneSnapshot(nodes: FlowNode[], edges: Edge[]): Snapshot {
   return {
     nodes: nodes.map((n) => {
@@ -33,7 +32,6 @@ export function useUndoHistory() {
   const lastCountRef = useRef({ nodes: 0, edges: 0 });
 
   const push = useCallback((nodes: FlowNode[], edges: Edge[]) => {
-    // Skip if nothing changed (fast count check instead of JSON compare)
     if (lastCountRef.current.nodes === nodes.length && lastCountRef.current.edges === edges.length) return;
     lastCountRef.current = { nodes: nodes.length, edges: edges.length };
 
