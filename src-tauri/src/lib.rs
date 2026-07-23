@@ -3,6 +3,8 @@ mod commands;
 use commands::asr::generate_subtitles;
 use commands::export::{export_with_subtitles, burn_with_synthetic_audio};
 use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inpaint_frame};
+use commands::stepfun::{generate_image, edit_image};
+use commands::llm::optimize_prompt;
 use commands::tripo::generate_3d;
 use commands::voice::{extract_voice_profile, synthesize_speech};
 
@@ -21,6 +23,9 @@ pub fn run() {
             strip_soft_subtitles,
             preview_inpaint_frame,
             generate_3d,
+            generate_image,
+            edit_image,
+            optimize_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

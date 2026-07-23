@@ -3,5 +3,7 @@ pub mod export;
 pub mod inpaint;
 pub mod voice;
 pub mod voice_encoder;
+pub mod stepfun;
 pub mod tripo;
 pub mod voice_tts;
+pub mod llm;
