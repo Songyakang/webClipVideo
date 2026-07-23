@@ -110,3 +110,13 @@ export interface Generate3DResult {
   vertexCount: number;
   faceCount: number;
 }
+
+export interface GenerateImageResult {
+  image_path: string;
+  seed: number | null;
+  finish_reason: string;
+}
+
+export interface OptimizePromptResult {
+  optimized_prompt: string;
+}
