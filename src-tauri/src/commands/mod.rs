@@ -7,3 +7,5 @@ pub mod stepfun;
 pub mod tripo;
 pub mod voice_tts;
 pub mod llm;
+pub mod assets;
+pub mod video;
