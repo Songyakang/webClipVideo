@@ -16,10 +16,11 @@ interface MenuActionDeps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onUndo: () => void;
   onRedo: () => void;
+  createTextNode?: (x: number, y: number) => string;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -41,10 +42,16 @@ export function useMenuActions(deps: MenuActionDeps) {
         generate3DFromImage(node);
         break;
       }
-      case "文本":
-        addNode("text", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
+      case "文本": {
+        const { x, y } = screenToFlow(menu.x, menu.y);
+        if (createTextNode) {
+          createTextNode(x, y);
+        } else {
+          addNode("text", x, y);
+        }
         setMenu(null);
         break;
+      }
       case "图片":
         addNode("image", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
         setMenu(null);

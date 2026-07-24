@@ -11,12 +11,12 @@ export function useNodeOperations(
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
-  const addNode = useCallback((type: string, x: number, y: number, fileUrl?: string) => {
+  const addNode = useCallback((type: string, x: number, y: number, fileUrl?: string, extraData?: Record<string, unknown>) => {
     const isMedia = type === "image-upload" || type === "video-upload";
     const id = `node-${++nodeIdCounterRef.current}`;
     const newNode: FlowNode = {
       id, type: type as FlowNode["type"], position: { x, y },
-      data: { type, content: "", fileUrl: fileUrl || "", w: isMedia ? undefined : 680, h: isMedia ? undefined : 400 },
+      data: { type, content: "", fileUrl: fileUrl || "", w: isMedia ? undefined : 680, h: isMedia ? undefined : 400, ...extraData },
     };
     setNodes((prev) => [...prev, newNode]);
     return id;

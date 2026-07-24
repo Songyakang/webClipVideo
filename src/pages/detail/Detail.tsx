@@ -203,12 +203,46 @@ export default function Detail() {
     if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
   }, [redo, setNodes, setEdges]);
 
+  const createTextNode = useCallback((x: number, y: number) => {
+    const w = 680;
+    const gap = 60;
+    const textNodeId = addNode("text", x, y);
+
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === textNodeId
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                onCreateVideoNode: () => {
+                  const vid = addNode("video-upload", x + w + gap, y);
+                  addEdge({ source: textNodeId, target: vid, sourceHandle: null, targetHandle: null });
+                },
+                onCreateImageNode: () => {
+                  const imgId = addNode("image", x + w + gap, y);
+                  addEdge({ source: textNodeId, target: imgId, sourceHandle: null, targetHandle: null });
+                },
+                onReversePrompt: () => {
+                  const imgId = addNode("image-upload", x - w - gap, y);
+                  addEdge({ source: imgId, target: textNodeId, sourceHandle: null, targetHandle: null });
+                },
+              },
+            }
+          : n,
+      ),
+    );
+
+    return textNodeId;
+  }, [addNode, addEdge, setNodes]);
+
   const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes, selectedNodes,
     addNode, deleteNode, duplicateNode,
     screenToFlow, generate3DFromImage,
     uploadPosRef, fileInputRef,
     onUndo, onRedo,
+    createTextNode,
   });
 
   useKeyboardShortcuts({
