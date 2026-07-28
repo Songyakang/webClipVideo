@@ -4,7 +4,7 @@ use commands::asr::generate_subtitles;
 use commands::export::{export_with_subtitles, burn_with_synthetic_audio};
 use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inpaint_frame};
 use commands::stepfun::{generate_image, edit_image};
-use commands::llm::optimize_prompt;
+use commands::llm::{optimize_prompt, reverse_prompt};
 use commands::assets::{list_project_assets, get_asset_thumbnail};
 use commands::video::trim_video;
 use commands::tripo::generate_3d;
@@ -27,6 +27,7 @@ pub fn run() {
             generate_3d,
             generate_image,
             edit_image,
+            reverse_prompt,
             optimize_prompt,
             list_project_assets,
             get_asset_thumbnail,

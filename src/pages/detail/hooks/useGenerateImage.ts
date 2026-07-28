@@ -2,7 +2,7 @@ import { useCallback, useState, type MutableRefObject } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { loadAssetUrl, resolveAssetPath } from "../../../lib/assets";
 import { showToast } from "../../../lib/toast";
-import type { GenerateImageResult } from "../../../lib/types";
+import type { GenerateImageResult, OptimizePromptResult } from "../../../lib/types";
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "../nodes/types";
 
@@ -43,6 +43,7 @@ export function useGenerateImage(
   edgesRef: MutableRefObject<Edge[]>,
 ) {
   const [generatingNodeId, setGeneratingNodeId] = useState<string | null>(null);
+  const [reversingNodeId, setReversingNodeId] = useState<string | null>(null);
 
   const DISPLAY_WIDTH = 680;
 
@@ -177,5 +178,53 @@ export function useGenerateImage(
     }
   }, [projectId, setNodes, setEdges, nodesRef, edgesRef]);
 
-  return { generateImage, generatingNodeId };
+  const reversePrompt = useCallback(async (
+    nodeId: string,
+    prompt: string,
+    provider: string,
+  ): Promise<string> => {
+    if (!prompt.trim()) {
+      showToast("请输入提示词", "error");
+      return "";
+    }
+
+    const node = nodesRef.current.find((n) => n.id === nodeId);
+    if (!node) {
+      showToast("节点不存在", "error");
+      return "";
+    }
+
+    setReversingNodeId(nodeId);
+
+    try {
+      const refImagePath = await findReferenceImage(nodeId, nodesRef, edgesRef);
+      if (!refImagePath) {
+        showToast("请先连接图片节点", "error");
+        return "";
+      }
+
+      const result = await invoke<OptimizePromptResult>("reverse_prompt", {
+        provider,
+        imagePath: refImagePath,
+        text: prompt.trim(),
+      });
+
+      if (!result.optimized_prompt.trim()) {
+        showToast("图片分析返回为空", "error");
+        return "";
+      }
+
+      showToast("图片分析完成", "success");
+      return result.optimized_prompt;
+    } catch (err) {
+      console.error("reverse_prompt failed:", err);
+      const msg = typeof err === "string" ? err : "图片分析失败，请稍后重试";
+      showToast(msg, "error");
+      return "";
+    } finally {
+      setReversingNodeId(null);
+    }
+  }, [nodesRef, edgesRef]);
+
+  return { generateImage, generatingNodeId, reversePrompt, reversingNodeId };
 }

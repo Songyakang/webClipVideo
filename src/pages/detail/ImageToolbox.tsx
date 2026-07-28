@@ -28,14 +28,30 @@ const MagicIcon = () => (
   </svg>
 );
 
-const STEPFUN_MODELS = [
-  { value: "step-image-edit-2", label: "Step Image Edit 2" },
-  { value: "step-2x-large", label: "Step 2X Large" },
+const ImgIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <polyline points="21 15 16 10 5 21" />
+  </svg>
+);
+
+const BrainIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3a3 3 0 0 0-3 3v1a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z" />
+    <path d="M9 10a5 5 0 0 0-5 5v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1a5 5 0 0 0-5-5" />
+    <line x1="12" y1="17" x2="12" y2="22" />
+  </svg>
+);
+
+const MODEL_ITEMS = [
+  { value: "step-image-edit-2", label: "Image Edit 2", desc: "图像编辑，支持局部修改与风格迁移", icon: ImgIcon },
+  { value: "step-2x-large", label: "2X Large", desc: "文生图大模型，高质量图像生成", icon: ImgIcon },
 ];
 
-const LLM_PROVIDERS = [
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "stepfun", label: "StepFun" },
+const PROVIDER_ITEMS = [
+  { value: "deepseek", label: "DeepSeek", desc: "通用大语言模型，擅长结构化输出", icon: BrainIcon },
+  { value: "stepfun", label: "StepFun", desc: "阶跃星辰语言模型", icon: BrainIcon },
 ];
 
 interface Props {
@@ -43,10 +59,11 @@ interface Props {
   nodeType: "image" | "text";
   defaultPrompt?: string;
   onOptimized?: (optimizedPrompt: string) => void;
+  mode?: string;
 }
 
-export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimized }: Props) {
-  const { generateImage, generatingNodeId } = useGenerateContext();
+export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimized, mode }: Props) {
+  const { generateImage, generatingNodeId, reversePrompt, reversingNodeId } = useGenerateContext();
   const [model, setModel] = useState("step-image-edit-2");
   const [prompt, setPrompt] = useState(defaultPrompt || "");
   const [size, setSize] = useState("1024x1024");
@@ -55,15 +72,25 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isGenerating = generatingNodeId === nodeId;
+  const isReversing = reversingNodeId === nodeId;
+  const isBusy = isGenerating || isReversing;
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
-    await generateImage(
-      nodeId,
-      prompt,
-      model,
-      { size: size !== "1024x1024" ? size : undefined },
-    );
+    if (mode === "reverse") {
+      const result = await reversePrompt(nodeId, prompt, "stepfun");
+      if (result) {
+        setPrompt(result);
+        onOptimized?.(result);
+      }
+    } else {
+      await generateImage(
+        nodeId,
+        prompt,
+        model,
+        { size: size !== "1024x1024" ? size : undefined },
+      );
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -101,68 +128,65 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
   return (
     <Tooltip.Provider delayDuration={300}>
       <div
-        className="z-[60] flex flex-col gap-2.5 p-4 rounded-xl border select-none"
-        style={{ background: "#161b22", borderColor: "#30363d", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
+        className="z-[60] flex flex-col gap-2.5 p-4 rounded-xl select-none"
+        style={{ background: "rgb(22, 27, 34)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <style>{`
-          .toolbox-btn {
+          .toolbox-label {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 7px 16px;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            background: #21262d;
-            color: #c9d1d9;
-            font-size: 13px;
+            gap: 4px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            color: #8b949e;
+            font-size: 12px;
             font-family: inherit;
-            cursor: pointer;
             white-space: nowrap;
-            transition: background 0.15s, border-color 0.15s, color 0.15s;
-            outline: none;
+            cursor: default;
+            user-select: none;
           }
-          .toolbox-btn:hover {
+          .toolbox-label.action {
+            color: #c9d1d9;
+            cursor: pointer;
+            background: rgb(22, 27, 34);
+            transition: background 0.15s, color 0.15s;
+          }
+          .toolbox-label.action:hover {
             background: #30363d;
-            border-color: #484f58;
             color: #e6edf3;
           }
-          .toolbox-btn:focus-visible {
-            border-color: #58a6ff;
-            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
-          }
-          .toolbox-btn.primary {
-            background: #238636;
-            border-color: rgba(240, 246, 252, 0.1);
+          .toolbox-label.accent {
+            background: #1f6feb;
             color: #fff;
             font-weight: 600;
-            padding: 7px 24px;
           }
-          .toolbox-btn.primary:hover {
-            background: #2ea043;
+          .toolbox-label.accent:hover {
+            background: #388bfd;
           }
-          .toolbox-btn.primary:disabled {
-            background: #1a3d24;
+          .toolbox-label.accent.disabled {
+            background: #0c2d6b;
             color: #484f58;
             cursor: not-allowed;
           }
-          .toolbox-btn.accent {
-            background: #1f6feb;
-            border-color: rgba(240, 246, 252, 0.1);
+          .toolbox-label.primary {
+            background: #238636;
             color: #fff;
+            font-weight: 600;
+            padding: 6px 20px;
+            font-size: 13px;
           }
-          .toolbox-btn.accent:hover {
-            background: #388bfd;
+          .toolbox-label.primary:hover {
+            background: #2ea043;
           }
-          .toolbox-btn.accent:disabled {
-            background: #0c2d6b;
+          .toolbox-label.primary.disabled {
+            background: #1a3d24;
             color: #484f58;
             cursor: not-allowed;
           }
           .toolbox-prompt {
             width: 100%;
             padding: 10px 14px;
-            border: 1px solid #30363d;
             border-radius: 8px;
             background: #0d1117;
             color: #e6edf3;
@@ -172,46 +196,45 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
             outline: none;
             resize: vertical;
             box-sizing: border-box;
-            transition: border-color 0.15s;
           }
           .toolbox-prompt::placeholder {
             color: #484f58;
           }
           .toolbox-prompt:focus {
-            border-color: #58a6ff;
             box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
           }
           .toolbox-select {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 7px 14px;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            background: #21262d;
+            gap: 4px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            background: rgb(22, 27, 34);
             color: #c9d1d9;
-            font-size: 13px;
+            font-size: 12px;
             font-family: inherit;
             cursor: pointer;
             outline: none;
-            transition: border-color 0.15s;
-            min-width: 180px;
+            transition: background 0.15s;
             justify-content: space-between;
           }
           .toolbox-select:hover {
             background: #30363d;
           }
           .toolbox-select:focus {
-            border-color: #58a6ff;
             box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
           }
           .toolbox-select span {
             line-height: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
-          .toolbox-select-sm {
-            min-width: 110px;
-            padding: 6px 10px;
-            font-size: 12px;
+          .select-dropdown {
+            background: rgb(22, 27, 34);
+            border-radius: 8px;
+            padding: 4px;
+            min-width: 140px;
           }
           .select-item {
             padding: 8px 14px;
@@ -220,6 +243,10 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
             cursor: pointer;
             outline: none;
             transition: background 0.1s;
+            border-radius: 4px;
+          }
+          .select-item > span:first-of-type {
+            display: none;
           }
           .select-item:hover {
             background: #30363d;
@@ -228,24 +255,69 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
             background: #1f6feb;
             color: #fff;
           }
+          .select-item .item-row {
+            display: flex;
+            align-items: stretch;
+            gap: 10px;
+          }
+          .select-item .item-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 32px;
+          }
+          .select-item .item-text {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 32px;
+          }
+          .select-item .item-name {
+            font-size: 13px;
+            color: #c9d1d9;
+          }
+          .select-item .item-desc {
+            font-size: 11px;
+            color: #8b949e;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease;
+          }
+          .select-item:hover .item-desc {
+            max-height: 16px;
+          }
+          .select-item[data-highlighted] .item-desc {
+            color: rgba(255,255,255,0.7);
+          }
+          .select-item[data-highlighted] .item-name {
+            color: #fff;
+          }
         `}</style>
 
         {/* Section 1 - prompt area with optimize button */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[#8b949e]">提示词</span>
+            <span className="toolbox-label">提示词</span>
             <div className="flex items-center gap-1.5">
               <Select.Root value={llmProvider} onValueChange={setLlmProvider}>
-                <Select.Trigger className="toolbox-select toolbox-select-sm">
+                <Select.Trigger className="toolbox-select">
                   <Select.Value />
                   <Select.Icon><ChevronDown /></Select.Icon>
                 </Select.Trigger>
                 <Select.Portal>
-                  <Select.Content className="select-dropdown" position="popper" sideOffset={4} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 8 }}>
+                  <Select.Content className="select-dropdown" sideOffset={4}>
                     <Select.Viewport>
-                      {LLM_PROVIDERS.map((p) => (
+                      {PROVIDER_ITEMS.map((p) => (
                         <Select.Item key={p.value} value={p.value} className="select-item">
                           <Select.ItemText>{p.label}</Select.ItemText>
+                          <div className="item-row">
+                            <div className="item-icon"><p.icon /></div>
+                            <div className="item-text">
+                              <div className="item-name">{p.label}</div>
+                              <div className="item-desc">{p.desc}</div>
+                            </div>
+                          </div>
                         </Select.Item>
                       ))}
                     </Select.Viewport>
@@ -254,14 +326,12 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
               </Select.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <button
-                    className="toolbox-btn accent"
-                    onClick={handleOptimize}
-                    disabled={optimizing || !prompt.trim()}
-                    style={{ padding: "6px 12px", fontSize: 12 }}
+                  <span
+                    className={`toolbox-label action accent${optimizing || !prompt.trim() ? " disabled" : ""}`}
+                    onClick={optimizing || !prompt.trim() ? undefined : handleOptimize}
                   >
                     {optimizing ? <><Spinner /> 优化中</> : <><MagicIcon /> 优化</>}
-                  </button>
+                  </span>
                 </Tooltip.Trigger>
                 <Tooltip.Content side="top" className="tooltip-content">
                   使用 LLM 将文本优化为图片生成提示词
@@ -280,25 +350,23 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
           />
         </div>
 
-        {/* Section 2 - placeholder tools */}
+        {/* Section 2 - labels */}
         <div className="flex items-center gap-2 flex-nowrap">
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">风格</button>
+              <span className="toolbox-label">风格</span>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">选择图像风格预设</Tooltip.Content>
           </Tooltip.Root>
-
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">标记</button>
+              <span className="toolbox-label">标记</span>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">为图像添加标记</Tooltip.Content>
           </Tooltip.Root>
-
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">参考</button>
+              <span className="toolbox-label">参考</span>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">连线到图片节点即视为参考</Tooltip.Content>
           </Tooltip.Root>
@@ -314,9 +382,16 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
             <Select.Portal>
               <Select.Content className="select-dropdown" position="popper" sideOffset={4} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 8 }}>
                 <Select.Viewport>
-                  {STEPFUN_MODELS.map((m) => (
+                  {MODEL_ITEMS.map((m) => (
                     <Select.Item key={m.value} value={m.value} className="select-item">
                       <Select.ItemText>{m.label}</Select.ItemText>
+                      <div className="item-row">
+                        <div className="item-icon"><m.icon /></div>
+                        <div className="item-text">
+                          <div className="item-name">{m.label}</div>
+                          <div className="item-desc">{m.desc}</div>
+                        </div>
+                      </div>
                     </Select.Item>
                   ))}
                 </Select.Viewport>
@@ -325,7 +400,7 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
           </Select.Root>
 
           <Select.Root value={size} onValueChange={setSize}>
-            <Select.Trigger className="toolbox-select" style={{ minWidth: 130 }}>
+            <Select.Trigger className="toolbox-select">
               <Select.Value />
               <Select.Icon><ChevronDown /></Select.Icon>
             </Select.Trigger>
@@ -344,32 +419,31 @@ export default function ImageToolbox({ nodeId, nodeType, defaultPrompt, onOptimi
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">画质</button>
+              <span className="toolbox-label">画质</span>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">设置输出画质</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">预设</button>
+              <span className="toolbox-label">预设</span>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">选择预设参数</Tooltip.Content>
           </Tooltip.Root>
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button className="toolbox-btn">图片数量</button>
+              <span className="toolbox-label">图片数量</span>
             </Tooltip.Trigger>
             <Tooltip.Content side="top" className="tooltip-content">设置生成数量</Tooltip.Content>
           </Tooltip.Root>
 
-          <button
-            className="toolbox-btn primary"
-            onClick={handleSubmit}
-            disabled={isGenerating || !prompt.trim()}
+          <span
+            className={`toolbox-label action primary${isBusy || !prompt.trim() ? " disabled" : ""}`}
+            onClick={isBusy || !prompt.trim() ? undefined : handleSubmit}
           >
-            {isGenerating ? <><Spinner /> 生成中</> : "提交"}
-          </button>
+            {isBusy ? <><Spinner /> {isReversing ? "分析中" : "生成中"}</> : mode === "reverse" ? "反向推理" : "提交"}
+          </span>
         </div>
 
       </div>

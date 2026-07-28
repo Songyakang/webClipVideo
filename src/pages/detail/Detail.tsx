@@ -12,6 +12,7 @@ import {
   SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import dagre from "dagre";
 import { useClipLoader } from "./hooks/useClipLoader";
 import { useCanvasPersistence } from "./hooks/useCanvasPersistence";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -103,9 +104,9 @@ export default function Detail() {
 
   const { fileInputRef, uploadPosRef, handleFileChange } = useFileUpload(id!, addNode, setNodes, resizeMediaNode);
 
-  const { generate3DFromImage } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
+  const { generate3DFromImage, addModelToDirector } = useGenerate3D(id!, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef);
 
-  const { generateImage, generatingNodeId } = useGenerateImage(id!, setNodes, setEdges, nodesRef, edgesRef);
+  const { generateImage, generatingNodeId, reversePrompt, reversingNodeId } = useGenerateImage(id!, setNodes, setEdges, nodesRef, edgesRef);
 
   const handleAddImageFromLibrary = useCallback((fileUrl: string, assetPath: string, x: number, y: number) => {
     const nid = `node-${++nodeIdCounterRef.current}`;
@@ -124,6 +125,68 @@ export default function Detail() {
       data: { type: "video-upload", content: "", fileUrl, assetPath },
     }]);
   }, [setNodes]);
+
+  const organizeCanvas = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+    if (currentNodes.length === 0) return;
+
+    push(currentNodes, currentEdges);
+
+    const g = new dagre.graphlib.Graph();
+    g.setDefaultEdgeLabel(() => ({}));
+    g.setGraph({ rankdir: "LR", nodesep: 80, ranksep: 160 });
+
+    currentNodes.forEach((node) => {
+      g.setNode(node.id, {
+        width: node.measured?.width ?? node.data.w ?? 200,
+        height: node.measured?.height ?? node.data.h ?? 100,
+      });
+    });
+
+    currentEdges.forEach((edge) => {
+      g.setEdge(edge.source, edge.target);
+    });
+
+    dagre.layout(g);
+
+    setNodes((prev) =>
+      prev.map((node) => {
+        const pos = g.node(node.id);
+        if (!pos) return node;
+        const w = node.measured?.width ?? node.data.w ?? 200;
+        const h = node.measured?.height ?? node.data.h ?? 100;
+        return { ...node, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
+      })
+    );
+
+    setTimeout(() => {
+      rfInstance.current?.fitView({ duration: 300, padding: 0.2 });
+    }, 50);
+  }, [setNodes, push]);
+
+  const handleOutputToCanvas = useCallback((videoAssetPath: string) => {
+    if (!directorNodeId) return;
+    const dirNode = nodesRef.current.find((n) => n.id === directorNodeId);
+    const pos = { x: (dirNode?.position.x ?? 0) + 400, y: dirNode?.position.y ?? 0 };
+    const vnId = addNode("video-upload", pos.x, pos.y);
+    addEdge({ source: directorNodeId, target: vnId, sourceHandle: null, targetHandle: null });
+    setDirectorNodeId(null);
+    getAssetSrc(videoAssetPath).then((url) => {
+      if (url) {
+        setNodes((prev) =>
+          prev.map((n) =>
+            n.id === vnId ? { ...n, data: { ...n.data, fileUrl: url, assetPath: videoAssetPath } } : n,
+          ),
+        );
+      }
+    });
+  }, [directorNodeId, addNode, addEdge, setNodes]);
+
+  const handleAddModelFromAsset = useCallback((assetPath: string) => {
+    if (!directorNodeId) return;
+    addModelToDirector(assetPath, directorNodeId, setNodes);
+  }, [directorNodeId, addModelToDirector, setNodes]);
 
   // Tauri native drag-drop listener
   const unlistenRef = useRef<(() => void) | null>(null);
@@ -236,6 +299,23 @@ export default function Detail() {
     return textNodeId;
   }, [addNode, addEdge, setNodes]);
 
+  const handleReversePromptFromImage = useCallback((imageNodeId: string) => {
+    const imgNode = nodesRef.current.find((n) => n.id === imageNodeId);
+    if (!imgNode) return;
+    const gap = 60;
+    const x = imgNode.position.x + (imgNode.data.w || 200) + gap;
+    const y = imgNode.position.y;
+    const textNodeId = addNode("text", x, y);
+    addEdge({ source: imageNodeId, target: textNodeId, sourceHandle: null, targetHandle: null });
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === textNodeId
+          ? { ...n, data: { ...n.data, mode: "reverse", content: "" } }
+          : n,
+      ),
+    );
+  }, [addNode, addEdge, setNodes]);
+
   const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes, selectedNodes,
     addNode, deleteNode, duplicateNode,
@@ -243,6 +323,7 @@ export default function Detail() {
     uploadPosRef, fileInputRef,
     onUndo, onRedo,
     createTextNode,
+    onReversePromptFromImage: handleReversePromptFromImage,
   });
 
   useKeyboardShortcuts({
@@ -307,7 +388,7 @@ export default function Detail() {
       ? selectedNodes[0]
       : null;
   return (
-    <GenerateContext.Provider value={{ generateImage, generatingNodeId }}>
+    <GenerateContext.Provider value={{ generateImage, generatingNodeId, reversePrompt, reversingNodeId }}>
     <div
       className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing"
       style={{ backgroundColor: "#0d1117" }}
@@ -432,6 +513,7 @@ export default function Detail() {
         assetLibraryOpen={showAssetLibrary}
         onToggleAssetLibrary={() => setShowAssetLibrary((v) => !v)}
         onPreview={() => setShowPreview(true)}
+        onOrganize={organizeCanvas}
         className="custom-controls absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-black rounded-lg p-0.5 select-none"
       />
 
@@ -498,9 +580,12 @@ export default function Detail() {
         <DirectorOverlay
           directorNodeId={directorNodeId}
           nodes={nodes}
+          edges={edges}
           projectId={id!}
           setNodes={setNodes}
           onClose={() => setDirectorNodeId(null)}
+          onOutputToCanvas={handleOutputToCanvas}
+          onAddModelFromAsset={handleAddModelFromAsset}
         />
       )}
 

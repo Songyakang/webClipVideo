@@ -113,6 +113,7 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
             nodeId={id}
             nodeType="text"
             defaultPrompt={defaultPrompt}
+            mode={d.mode}
             onOptimized={(optimizedPrompt) => {
               d.content = JSON.stringify({ prompt: optimizedPrompt });
               forceUpdate();
