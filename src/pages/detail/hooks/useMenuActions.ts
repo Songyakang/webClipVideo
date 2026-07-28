@@ -7,7 +7,7 @@ interface MenuActionDeps {
   setMenu: (m: MenuState | null) => void;
   nodes: FlowNode[];
   selectedNodes: FlowNode[];
-  addNode: (type: string, x: number, y: number, fileUrl?: string) => string;
+  addNode: (type: string, x: number, y: number, fileUrl?: string, extraData?: Record<string, unknown>) => string;
   deleteNode: (nodeId: string) => void;
   duplicateNode: (nodeId: string) => void;
   screenToFlow: (sx: number, sy: number) => { x: number; y: number };
@@ -17,10 +17,11 @@ interface MenuActionDeps {
   onUndo: () => void;
   onRedo: () => void;
   createTextNode?: (x: number, y: number) => string;
+  onReversePromptFromImage?: (imageNodeId: string) => void;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -56,6 +57,44 @@ export function useMenuActions(deps: MenuActionDeps) {
         addNode("image", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
         setMenu(null);
         break;
+      case "视频":
+        addNode("video-upload", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
+        setMenu(null);
+        break;
+      case "导演台": {
+        const { x, y } = screenToFlow(menu.x, menu.y);
+        addNode("director", x, y, undefined, {
+          label: "导演台",
+          sourceImageNodeIds: [],
+          models: [],
+          cameraTracks: [{
+            id: "cam_1",
+            name: "主摄像机",
+            enabled: true,
+            keyframes: [
+              { time: 0, fov: 45, position: [0, 1.5, 5], lookAt: [0, 0, 0] },
+              { time: 5, fov: 45, position: [3, 2, 2], lookAt: [0, 0.5, 0] },
+            ],
+            easing: "ease-in-out",
+          }],
+          sceneSettings: {
+            backgroundColor: "#1a1a2e",
+            ambientLight: 0.5,
+            gridVisible: true,
+          },
+        });
+        setMenu(null);
+        break;
+      }
+      case "图片反推提示词": {
+        if (!menu?.nodeId) break;
+        const imgNode = nodes.find((n) => n.id === menu.nodeId);
+        if (!imgNode || (imgNode.data.type !== "image" && imgNode.data.type !== "image-upload")) break;
+        if (!imgNode.data.assetPath) break;
+        setMenu(null);
+        onReversePromptFromImage?.(menu.nodeId);
+        break;
+      }
       case "删除":
       case "删除选中": {
         if (selectedNodes.length > 1) {
@@ -82,7 +121,7 @@ export function useMenuActions(deps: MenuActionDeps) {
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage]);
 
   return { handleMenuAction };
 }
