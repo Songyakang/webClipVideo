@@ -110,5 +110,70 @@ export function useGenerate3D(
     }
   }, [projectId, setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef]);
 
-  return { generate3DFromImage };
+  const addModelToDirector = useCallback(async (
+    assetPath: string,
+    directorNodeId: string,
+    setNodesFn: React.Dispatch<React.SetStateAction<FlowNode[]>>,
+  ): Promise<void> => {
+    const modelId = `model-${Date.now()}`;
+
+    setNodesFn((prev) =>
+      prev.map((n) => {
+        if (n.id !== directorNodeId || !n.data.models) return n;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            models: [
+              ...n.data.models,
+              {
+                id: modelId,
+                name: assetPath.split("/").pop() ?? "模型",
+                modelPath: "",
+                thumbnailPath: "",
+                transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
+                meta: { vertexCount: 0, faceCount: 0, sourceImageId: "" },
+                status: "loading" as const,
+              } as SceneModel,
+            ],
+          },
+        };
+      }),
+    );
+
+    let imageAbsPath: string;
+    try {
+      const resolved = await resolveAssetPath(assetPath);
+      if (!resolved) {
+        showToast("文件读取失败，请检查文件是否存在", "error");
+        setNodesFn((prev) => updateDirectorModels(prev, directorNodeId, modelId, (m) => ({ ...m, status: "error" })));
+        return;
+      }
+      imageAbsPath = resolved;
+    } catch {
+      showToast("文件读取失败，请检查文件是否存在", "error");
+      setNodesFn((prev) => updateDirectorModels(prev, directorNodeId, modelId, (m) => ({ ...m, status: "error" })));
+      return;
+    }
+
+    try {
+      const result = await invoke<Generate3DResult>("generate_3d", { imagePath: imageAbsPath, projectId });
+      setNodesFn((prev) =>
+        updateDirectorModels(prev, directorNodeId, modelId, (m) => ({
+          ...m,
+          modelPath: result.modelPath,
+          thumbnailPath: result.thumbnailPath,
+          meta: { ...m.meta, vertexCount: result.vertexCount, faceCount: result.faceCount },
+          status: "ready",
+        })),
+      );
+      showToast("3D 模型添加成功", "success");
+    } catch (err) {
+      console.error("generate_3d failed:", err);
+      showToast("3D 模型生成失败，请稍后重试", "error");
+      setNodesFn((prev) => updateDirectorModels(prev, directorNodeId, modelId, (m) => ({ ...m, status: "error" })));
+    }
+  }, [projectId]);
+
+  return { generate3DFromImage, addModelToDirector };
 }

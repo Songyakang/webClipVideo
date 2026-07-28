@@ -27,3 +27,8 @@ export const RESOLUTION_OPTIONS: { label: string; width: number; height: number 
 ];
 
 export const DEFAULT_RESOLUTION = RESOLUTION_OPTIONS[1]; // 1080p
+
+export interface ConnectedScene {
+  nodeId: string;
+  data: import("../../../lib/types").DirectorNodeData & { type: string; content: string };
+}

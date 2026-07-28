@@ -1,5 +1,6 @@
 import { useRef, useCallback } from "react";
 import type { CameraTrack, CameraKeyframe } from "./types";
+import { PlayIcon, PauseIcon } from "./icons";
 
 interface Props {
   tracks: CameraTrack[];
@@ -56,18 +57,20 @@ export default function KeyframeTimeline({
   return (
     <>
       <style>{`
-        .kf-timeline { background: #0d0d1a; border-top: 1px solid #2a2a4a; }
-        .kf-track-list { border-right: 1px solid #2a2a4a; }
-        .kf-track-label { color: #888; }
-        .kf-track-label.active { background: #1a1a2e; color: #e0e0e0; }
-        .kf-ruler { border-bottom: 1px solid #2a2a4a; }
-        .kf-ruler-label { color: #555; }
-        .kf-track-row { border-bottom: 1px solid #1a1a2e; }
-        .kf-keyframe-dot { border: 1px solid #fff; }
-        .kf-playhead { background: #fff; }
-        .kf-controls { border-left: 1px solid #2a2a4a; }
-        .kf-ctrl-btn { background: #1a1a2e; border: 1px solid #333; border-radius: 4px; color: #ccc; }
-        .kf-time-display { color: #a78bfa; font-family: monospace; }
+        .kf-timeline { background: #161b22; border-top: 1px solid #21262d; }
+        .kf-track-list { border-right: 1px solid #21262d; }
+        .kf-track-label { color: #8b949e; border-radius: 4px; transition: background 0.15s; }
+        .kf-track-label:hover { background: #21262d; }
+        .kf-track-label.active { background: #0d1117; color: #e6edf3; }
+        .kf-ruler { border-bottom: 1px solid #21262d; }
+        .kf-ruler-label { color: #484f58; }
+        .kf-track-row { border-bottom: 1px solid #21262d; }
+        .kf-keyframe-dot { border: 1px solid #e6edf3; border-radius: 2px; }
+        .kf-playhead { background: #58a6ff; }
+        .kf-controls { border-left: 1px solid #21262d; }
+        .kf-ctrl-btn { background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; transition: background 0.15s; cursor: pointer; }
+        .kf-ctrl-btn:hover { background: #30363d; }
+        .kf-time-display { color: #58a6ff; font-family: monospace; }
       `}</style>
       <div className="kf-timeline flex h-[120px] shrink-0">
         {/* Track list */}
@@ -125,7 +128,7 @@ export default function KeyframeTimeline({
         {/* Controls */}
         <div className="kf-controls w-[120px] flex flex-col items-center justify-center gap-1.5 p-2">
           <button className="kf-ctrl-btn px-2.5 py-1 rounded cursor-pointer text-[13px]" onClick={playing ? onPause : onPlay}>
-            {playing ? "⏸" : "▶"}
+            {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
           <span className="kf-time-display text-[11px]">
             {formatTime(currentTime)} / {formatTime(duration)}

@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { DirectorNodeData, SceneModel } from "../../../lib/types";
+import { FilmIcon } from "../director/icons";
 
 function DirectorNode({ data, selected }: NodeProps) {
   const d = data as unknown as DirectorNodeData;
@@ -12,7 +13,7 @@ function DirectorNode({ data, selected }: NodeProps) {
     <div className={`director-node${selected ? " selected" : ""}`}>
       <Handle type="target" position={Position.Left} />
       <div className="director-node-header">
-        <span className="director-icon">🎬</span>
+        <span className="director-icon"><FilmIcon /></span>
         <span className="director-label">{d.label || "导演台"}</span>
       </div>
       <div className="director-node-body">

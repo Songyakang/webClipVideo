@@ -9,6 +9,7 @@ interface Props {
   assetLibraryOpen?: boolean;
   onToggleAssetLibrary?: () => void;
   onPreview?: () => void;
+  onOrganize?: () => void;
 }
 
 const AssetLibraryIcon = () => (
@@ -26,7 +27,19 @@ const PreviewIcon = () => (
   </svg>
 );
 
-export default function CustomControls({ rfInstance, zoom, className, assetLibraryOpen, onToggleAssetLibrary, onPreview }: Props) {
+const OrganizeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="4" r="2.5" />
+    <circle cx="5" cy="16" r="2.5" />
+    <circle cx="12" cy="16" r="2.5" />
+    <circle cx="19" cy="16" r="2.5" />
+    <line x1="11" y1="6.5" x2="6" y2="13.5" />
+    <line x1="12" y1="6.5" x2="12" y2="13.5" />
+    <line x1="13" y1="6.5" x2="18" y2="13.5" />
+  </svg>
+);
+
+export default function CustomControls({ rfInstance, zoom, className, assetLibraryOpen, onToggleAssetLibrary, onPreview, onOrganize }: Props) {
   const zoomIn = () => rfInstance.current?.zoomIn({ duration: 200 });
   const zoomOut = () => rfInstance.current?.zoomOut({ duration: 200 });
   const fitView = () => rfInstance.current?.fitView({ duration: 200, padding: 0.2 });
@@ -45,6 +58,11 @@ export default function CustomControls({ rfInstance, zoom, className, assetLibra
       {onPreview && (
         <button onClick={onPreview} title="预览">
           <PreviewIcon />
+        </button>
+      )}
+      {onOrganize && (
+        <button onClick={onOrganize} title="整理画布">
+          <OrganizeIcon />
         </button>
       )}
       <button onClick={zoomIn} title="放大">+</button>

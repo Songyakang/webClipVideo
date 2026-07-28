@@ -421,46 +421,53 @@ textarea {
 
 /* Director Node */
 .director-node {
-  background: #1a0a2e;
-  border: 2px solid #7c3aed;
+  background: #161b22;
+  border: 2px solid #30363d;
   border-radius: 10px;
-  min-width: 180px;
-  box-shadow: 0 0 12px rgba(124, 58, 237, 0.25);
-  color: #e0e0e0;
+  width: 680px;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: #e6edf3;
   font-size: 13px;
 }
 .director-node.selected {
-  border-color: #a78bfa;
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.5);
+  border-color: #58a6ff;
+  box-shadow: 0 4px 20px rgba(88, 166, 255, 0.2);
 }
 .director-node-header {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(124, 58, 237, 0.3);
+  border-bottom: 1px solid #21262d;
   font-weight: 600;
 }
 .director-icon {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  color: #58a6ff;
 }
 .director-label {
-  color: #c4b5fd;
+  color: #58a6ff;
 }
 .director-node-body {
   padding: 10px 14px;
   font-size: 12px;
-  color: #a0a0b8;
+  color: #8b949e;
+  flex: 1;
 }
 .director-model-count {
   margin-bottom: 4px;
+  color: #c9d1d9;
 }
 .director-loading-badge {
   color: #f59e0b;
   font-size: 11px;
 }
 .director-empty-hint {
-  color: #555;
+  color: #484f58;
   font-style: italic;
   font-size: 11px;
 }
