@@ -1,212 +1,60 @@
+/**
+ * SQLite-backed persistence layer.
+ *
+ * All data is stored in `~/Documents/editor-tarui/data.db` via Tauri commands.
+ * Each function maps 1:1 to a Rust `#[tauri::command]` in `src-tauri/src/commands/db.rs`.
+ */
+
+import { invoke } from "@tauri-apps/api/core";
 import type { Node, Edge } from "@xyflow/react";
 import type { VideoClip, SubtitleTrack } from "./types";
-import { showToast } from "./toast";
-
-const DB_NAME = "video-clip-editor";
-const DB_VERSION = 5;
-const STORE_NODES = "nodes";
-const STORE_EDGES = "edges";
-const STORE_CLIPS = "clips";
-const STORE_SUBTITLES = "subtitles";
+import type { TimelineRecord } from "../pages/detail/timeline/types";
 
 // ---------------------------------------------------------------------------
-// IndexedDB schema record types
+// Connection (no-op — SQLite is managed by the Rust backend)
 // ---------------------------------------------------------------------------
 
-export interface CanvasNodeRecord {
-  id: string;
-  type?: string | null;
-  position: { x: number; y: number };
-  data: Record<string, unknown>;
-  width?: number | null;
-  height?: number | null;
-  selected?: boolean | null;
-  clipId: string;
-}
-
-export interface CanvasEdgeRecord {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: string | null;
-  targetHandle?: string | null;
-  clipId: string;
-}
-
-export interface SubtitleRecord extends SubtitleTrack {
-  clipId: string;
-}
-
-export type ClipRecord = VideoClip;
-
-// ---------------------------------------------------------------------------
-// Connection manager (singleton pattern)
-// ---------------------------------------------------------------------------
-
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      const upgradeTx = req.transaction!;
-
-      // --- nodes store ---
-      if (!db.objectStoreNames.contains(STORE_NODES)) {
-        const ns = db.createObjectStore(STORE_NODES, { keyPath: "id" });
-        ns.createIndex("clipId", "clipId", { unique: false });
-      } else {
-        const ns = upgradeTx.objectStore(STORE_NODES);
-        if (!ns.indexNames.contains("clipId")) {
-          ns.createIndex("clipId", "clipId", { unique: false });
-        }
-      }
-
-      // --- edges store ---
-      if (!db.objectStoreNames.contains(STORE_EDGES)) {
-        const es = db.createObjectStore(STORE_EDGES, { keyPath: "id" });
-        es.createIndex("clipId", "clipId", { unique: false });
-      } else {
-        const es = upgradeTx.objectStore(STORE_EDGES);
-        if (!es.indexNames.contains("clipId")) {
-          es.createIndex("clipId", "clipId", { unique: false });
-        }
-      }
-
-      // --- clips store ---
-      if (!db.objectStoreNames.contains(STORE_CLIPS)) {
-        const cs = db.createObjectStore(STORE_CLIPS, { keyPath: "id" });
-        cs.createIndex("createdAt", "createdAt", { unique: false });
-      }
-
-      // --- subtitles store ---
-      if (!db.objectStoreNames.contains(STORE_SUBTITLES)) {
-        const ss = db.createObjectStore(STORE_SUBTITLES, { keyPath: "id" });
-        ss.createIndex("clipId", "clipId", { unique: false });
-      } else {
-        const ss = upgradeTx.objectStore(STORE_SUBTITLES);
-        if (!ss.indexNames.contains("clipId")) {
-          ss.createIndex("clipId", "clipId", { unique: false });
-        }
-      }
-
-      // -- Backward compat: loadCanvas also returns legacy records without clipId --
-      // No destructive backfill — legacy records stay visible to all clips.
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => {
-      showToast("数据库连接失败，请刷新页面", "error");
-      reject(req.error);
-    };
-  });
-}
-
-function getDB(): Promise<IDBDatabase> {
-  if (!dbPromise) dbPromise = openDB();
-  return dbPromise;
-}
-
-/** Close the singleton connection (e.g. on app exit). */
 export function closeDB(): void {
-  if (dbPromise) {
-    dbPromise.then((db) => db.close());
-    dbPromise = null;
-  }
+  // SQLite connection is managed by the Tauri app lifecycle
 }
 
 // ---------------------------------------------------------------------------
-// Low-level helpers
-// ---------------------------------------------------------------------------
-
-function storeGetAll<T>(db: IDBDatabase, name: string): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(name, "readonly");
-    const store = tx.objectStore(name);
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/**
- * Delete every record in `store` whose `indexName` index key equals `key`.
- * Must be called inside an active readwrite transaction.
- */
-function deleteRecordsByIndex(
-  store: IDBObjectStore,
-  indexName: string,
-  key: string,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const index = store.index(indexName);
-    const req = index.openCursor(IDBKeyRange.only(key));
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
-      } else {
-        resolve();
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Canvas (per-clip isolation via clipId field)
+// Canvas (per-clip isolation via clip_id column)
 // ---------------------------------------------------------------------------
 
 export async function saveCanvas(
   clipId: string,
   nodes: Node[],
   edges: Edge[],
-) {
+): Promise<void> {
   if (!clipId) return;
 
-  const db = await getDB();
-  const tx = db.transaction([STORE_NODES, STORE_EDGES], "readwrite");
-  const nodeStore = tx.objectStore(STORE_NODES);
-  const edgeStore = tx.objectStore(STORE_EDGES);
-
-  // Precisely delete this clip's old nodes and edges via the clipId index
-  await deleteRecordsByIndex(nodeStore, "clipId", clipId);
-  await deleteRecordsByIndex(edgeStore, "clipId", clipId);
-
-  // Tag new records with clipId, strip DOM refs
-  const cleanNodes: CanvasNodeRecord[] = nodes.map((n) => {
-    const { videoEl, ...cleanData } = n.data || {};
+  // Strip DOM refs (videoEl) and map to Rust input shape
+  const cleanNodes = nodes.map((n) => {
+    const { videoEl, ...cleanData } = (n.data || {}) as Record<string, unknown>;
     return {
       id: n.id,
       type: n.type,
       position: n.position,
       data: cleanData,
-      width: n.width,
-      height: n.height,
-      selected: n.selected,
-      clipId,
+      width: n.width ?? undefined,
+      height: n.height ?? undefined,
+      selected: n.selected ?? false,
     };
   });
-  const cleanEdges: CanvasEdgeRecord[] = edges.map((e) => ({
+
+  const cleanEdges = edges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
-    sourceHandle: e.sourceHandle,
-    targetHandle: e.targetHandle,
-    clipId,
+    sourceHandle: e.sourceHandle ?? "",
+    targetHandle: e.targetHandle ?? "",
   }));
 
-  for (const n of cleanNodes) nodeStore.put(n);
-  for (const e of cleanEdges) edgeStore.put(e);
-
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => {
-      console.error("IndexedDB saveCanvas failed:", tx.error);
-      showToast("保存画布数据失败", "error");
-      reject(tx.error);
-    };
+  await invoke("db_save_canvas", {
+    clipId,
+    nodes: cleanNodes,
+    edges: cleanEdges,
   });
 }
 
@@ -216,29 +64,20 @@ export async function loadCanvas(clipId: string): Promise<{
 }> {
   if (!clipId) return { nodes: [], edges: [] };
 
-  const db = await getDB();
+  const result = await invoke<{ nodes: any[]; edges: any[] }>("db_load_canvas", { clipId });
 
-  // Load records with matching clipId (post-migration) plus legacy records without clipId
-  const [allNodes, allEdges] = await Promise.all([
-    storeGetAll<CanvasNodeRecord>(db, STORE_NODES),
-    storeGetAll<CanvasEdgeRecord>(db, STORE_EDGES),
-  ]);
-
-  const rawNodes = allNodes.filter((n) => !n.clipId || n.clipId === clipId);
-  const rawEdges = allEdges.filter((e) => !e.clipId || e.clipId === clipId);
-
-  const nodes: Node[] = rawNodes.map((n) => ({
+  const nodes: Node[] = result.nodes.map((n: any) => ({
     id: n.id,
     type: n.type || "text",
     position: n.position || { x: 0, y: 0 },
-    data: { ...n.data, fileUrl: (n.data as Record<string, unknown>)?.fileUrl || "" },
+    data: { ...n.data, fileUrl: n.data?.fileUrl || "" },
     width: n.width ?? undefined,
     height: n.height ?? undefined,
     selected: false,
     dragging: false,
   }));
 
-  const edges: Edge[] = rawEdges.map((e) => ({
+  const edges: Edge[] = result.edges.map((e: any) => ({
     id: e.id,
     source: e.source,
     target: e.target,
@@ -249,28 +88,9 @@ export async function loadCanvas(clipId: string): Promise<{
   return { nodes, edges };
 }
 
-export async function clearCanvas(clipId: string) {
+export async function clearCanvas(clipId: string): Promise<void> {
   if (!clipId) return;
-
-  const db = await getDB();
-  const tx = db.transaction([STORE_NODES, STORE_EDGES, STORE_SUBTITLES], "readwrite");
-  const nodeStore = tx.objectStore(STORE_NODES);
-  const edgeStore = tx.objectStore(STORE_EDGES);
-  const subStore = tx.objectStore(STORE_SUBTITLES);
-
-  // Delete this clip's records via clipId index (legacy records without clipId are untouched)
-  await deleteRecordsByIndex(nodeStore, "clipId", clipId);
-  await deleteRecordsByIndex(edgeStore, "clipId", clipId);
-  await deleteRecordsByIndex(subStore, "clipId", clipId);
-
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => {
-      console.error("IndexedDB clearCanvas failed:", tx.error);
-      showToast("清理画布数据失败", "error");
-      reject(tx.error);
-    };
-  });
+  await invoke("db_clear_canvas", { clipId });
 }
 
 // ---------------------------------------------------------------------------
@@ -278,43 +98,28 @@ export async function clearCanvas(clipId: string) {
 // ---------------------------------------------------------------------------
 
 export async function getAllClips(): Promise<VideoClip[]> {
-  const db = await getDB();
-  const clips: VideoClip[] = await storeGetAll<ClipRecord>(db, STORE_CLIPS);
-  return clips.sort((a, b) => b.createdAt - a.createdAt);
+  return invoke<VideoClip[]>("db_get_all_clips");
 }
 
 export async function getClipById(id: string): Promise<VideoClip | undefined> {
-  const db = await getDB();
-  const tx = db.transaction(STORE_CLIPS, "readonly");
-  const store = tx.objectStore(STORE_CLIPS);
-  const clip = await new Promise<VideoClip | undefined>((resolve, reject) => {
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result ?? undefined);
-    req.onerror = () => {
-      showToast("读取数据失败", "error");
-      reject(req.error);
-    };
-  });
-  return clip;
+  const result = await invoke<VideoClip | null>("db_get_clip_by_id", { id });
+  return result ?? undefined;
 }
 
-export async function addClip(data: Omit<VideoClip, "id" | "createdAt">): Promise<VideoClip> {
-  const db = await getDB();
-  const clip: VideoClip = {
-    ...data,
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 9),
-    createdAt: Date.now(),
-  };
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_CLIPS, "readwrite");
-    const req = tx.objectStore(STORE_CLIPS).put(clip);
-    req.onsuccess = () => resolve();
-    req.onerror = () => {
-      console.error("IndexedDB addClip failed:", req.error);
-      showToast("保存失败，请检查磁盘空间", "error");
-      reject(req.error);
-    };
-    tx.oncomplete = () => resolve();
+export async function addClip(
+  data: Omit<VideoClip, "id" | "createdAt">,
+): Promise<VideoClip> {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+  const clip = await invoke<VideoClip>("db_add_clip", {
+    data: {
+      id,
+      title: data.title,
+      description: data.description,
+      url: data.url,
+      thumbnail: data.thumbnail,
+      duration: data.duration,
+      tags: data.tags ?? [],
+    },
   });
   return clip;
 }
@@ -323,78 +128,16 @@ export async function updateClip(
   id: string,
   data: Partial<Omit<VideoClip, "id" | "createdAt">>,
 ): Promise<VideoClip | undefined> {
-  const db = await getDB();
-  const tx = db.transaction(STORE_CLIPS, "readwrite");
-  const store = tx.objectStore(STORE_CLIPS);
-  const existing = await new Promise<VideoClip | undefined>((resolve, reject) => {
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result ?? undefined);
-    req.onerror = () => reject(req.error);
-  });
-  if (!existing) return undefined;
-  const updated = { ...existing, ...data };
-  await new Promise<void>((resolve, reject) => {
-    const req = store.put(updated);
-    req.onsuccess = () => resolve();
-    req.onerror = () => {
-      showToast("更新失败，请重试", "error");
-      reject(req.error);
-    };
-  });
-  return updated;
+  const result = await invoke<VideoClip | null>("db_update_clip", { id, data });
+  return result ?? undefined;
 }
 
 export async function deleteClip(id: string): Promise<boolean> {
-  const db = await getDB();
-  const tx = db.transaction(STORE_CLIPS, "readwrite");
-  const store = tx.objectStore(STORE_CLIPS);
-  const existing = await new Promise<VideoClip | undefined>((resolve, reject) => {
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result ?? undefined);
-    req.onerror = () => reject(req.error);
-  });
-  if (!existing) return false;
-  store.delete(id);
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => {
-      console.error("IndexedDB deleteClip failed:", tx.error);
-      showToast("删除失败，请稍后重试", "error");
-      reject(tx.error);
-    };
-  });
-  return true;
+  return invoke<boolean>("db_delete_clip", { id });
 }
 
 export async function searchClips(query: string): Promise<VideoClip[]> {
-  const db = await getDB();
-  const tx = db.transaction(STORE_CLIPS, "readonly");
-  const store = tx.objectStore(STORE_CLIPS);
-  const q = query.toLowerCase();
-
-  const results: VideoClip[] = [];
-  await new Promise<void>((resolve, reject) => {
-    const req = store.openCursor();
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        const clip = cursor.value as VideoClip;
-        if (
-          clip.title.toLowerCase().includes(q) ||
-          clip.description.toLowerCase().includes(q) ||
-          clip.tags.some((t) => t.toLowerCase().includes(q))
-        ) {
-          results.push(clip);
-        }
-        cursor.continue();
-      } else {
-        resolve();
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-
-  return results.sort((a, b) => b.createdAt - a.createdAt);
+  return invoke<VideoClip[]>("db_search_clips", { query });
 }
 
 // ---------------------------------------------------------------------------
@@ -402,22 +145,52 @@ export async function searchClips(query: string): Promise<VideoClip[]> {
 // ---------------------------------------------------------------------------
 
 export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
-  const db = await getDB();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_SUBTITLES, "readwrite");
-    tx.objectStore(STORE_SUBTITLES).put(track);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+  await invoke("db_save_subtitle", {
+    track: {
+      id: track.id,
+      items: track.items ?? [],
+      language: track.language ?? "",
+      status: (track as any).status ?? "",
+      clipId: (track as any).clipId ?? "",
+    },
   });
 }
 
 export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
-  const db = await getDB();
-  const track = await new Promise<SubtitleTrack | undefined>((resolve, reject) => {
-    const tx = db.transaction(STORE_SUBTITLES, "readonly");
-    const req = tx.objectStore(STORE_SUBTITLES).get(nodeId);
-    req.onsuccess = () => resolve(req.result ?? undefined);
-    req.onerror = () => reject(req.error);
+  const result = await invoke<any | null>("db_load_subtitle", { nodeId });
+  if (!result) return null;
+  return {
+    id: result.id,
+    items: result.items ?? [],
+    language: result.language ?? "",
+    status: result.status ?? "",
+  } as SubtitleTrack;
+}
+
+// ---------------------------------------------------------------------------
+// Timeline persistence
+// ---------------------------------------------------------------------------
+
+export async function dbSaveTimeline(record: TimelineRecord): Promise<void> {
+  await invoke("db_save_timeline", {
+    record: {
+      projectId: record.projectId,
+      data: record.data,
+      updatedAt: record.updatedAt,
+    },
   });
-  return track || null;
+}
+
+export async function dbLoadTimeline(projectId: string): Promise<TimelineRecord | null> {
+  const result = await invoke<any | null>("db_load_timeline", { projectId });
+  if (!result) return null;
+  return {
+    projectId: result.projectId,
+    data: result.data,
+    updatedAt: result.updatedAt,
+  };
+}
+
+export async function dbDeleteTimeline(projectId: string): Promise<void> {
+  await invoke("db_delete_timeline", { projectId });
 }

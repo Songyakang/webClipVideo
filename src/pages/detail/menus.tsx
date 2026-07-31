@@ -29,6 +29,7 @@ export const FLOW_ITEM_MENU: MenuItem[] = [
   { label: "转为3D模型" },
   { label: "图片反推提示词" },
   { label: "删除" },
+  { label: "打开剪辑台" },
   { label: "复制到剪贴板" },
 ];
 

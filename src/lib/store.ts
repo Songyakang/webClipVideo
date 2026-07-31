@@ -1,4 +1,5 @@
 import type { VideoClip, SubtitleTrack } from "./types";
+import type { TimelineData } from "../pages/detail/timeline/types";
 import { showToast } from "./toast";
 import { deleteProjectAssets } from "./assets";
 import {
@@ -11,6 +12,9 @@ import {
   saveSubtitleTrack as dbSaveTrack,
   loadSubtitleTrack as dbLoadTrack,
   clearCanvas as dbClearCanvas,
+  dbSaveTimeline,
+  dbLoadTimeline,
+  dbDeleteTimeline,
 } from "./db";
 
 export async function getAllClips(): Promise<VideoClip[]> {
@@ -61,4 +65,17 @@ export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
 
 export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
   return dbLoadTrack(nodeId);
+}
+
+export async function saveTimeline(projectId: string, data: TimelineData): Promise<void> {
+  return dbSaveTimeline({ projectId, data, updatedAt: Date.now() });
+}
+
+export async function loadTimeline(projectId: string): Promise<TimelineData | null> {
+  const record = await dbLoadTimeline(projectId);
+  return record?.data ?? null;
+}
+
+export async function deleteTimeline(projectId: string): Promise<void> {
+  return dbDeleteTimeline(projectId);
 }

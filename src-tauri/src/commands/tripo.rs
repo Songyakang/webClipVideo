@@ -6,21 +6,7 @@ use tauri::Manager;
 const TRIPO_BASE: &str = "https://openapi.tripo3d.com/v3";
 
 fn get_api_key() -> Result<String, String> {
-    let candidates = vec![
-        PathBuf::from("config.json"),
-        PathBuf::from("../config.json"),
-        PathBuf::from("../../config.json"),
-    ];
-    for path in &candidates {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(key) = parsed.get("tripo_api_key").and_then(|v| v.as_str()) {
-                    return Ok(key.to_string());
-                }
-            }
-        }
-    }
-    Err("config.json not found or missing tripo_api_key field".to_string())
+    crate::commands::config::get_api_key("tripo")
 }
 
 #[derive(Serialize)]

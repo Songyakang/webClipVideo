@@ -27,3 +27,22 @@ reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
 tokio = { version = "1", features = ["fs"] }
 base64 = "0.22"
 
+# Image processing (pure Rust, replaces Python opencv-python)
+image = "0.25"
+imageproc = "0.25"
+
+# WebSocket for Edge TTS (replaces Python edge-tts)
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
+
+# Audio processing (replaces Python soundfile + librosa + torch)
+hound = "3"
+rubato = "0.15"
+
+# ONNX inference (replaces Python torch + modelscope + onnxruntime)
+ort = { version = "2.0.0-rc.13", features = ["load-dynamic"] }
+ndarray = "0.17"
+
+# SQLite (replaces browser IndexedDB)
+rusqlite = { version = "0.32", features = ["bundled"] }
+

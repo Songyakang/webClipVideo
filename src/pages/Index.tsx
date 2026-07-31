@@ -8,6 +8,7 @@ export default function Index() {
   const [clips, setClips] = useState<VideoClip[]>([]);
   const [query, setQuery] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
 
   const refresh = useCallback(async () => {
     const data = query ? await searchClips(query) : await getAllClips();
@@ -75,7 +76,7 @@ export default function Index() {
         }
       `}</style>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 items-center">
         <input
           type="text"
           className="flex-1 max-w-[400px]"
@@ -92,6 +93,34 @@ export default function Index() {
             清除
           </button>
         )}
+        <div className="flex-1" />
+        <div style={{ position: "relative" }}>
+          <button
+            className="bg-transparent border cursor-pointer rounded-lg px-3 py-1.5 text-[13px]"
+            style={{ background: "#161b22", borderColor: "#30363d", color: "#8b949e" }}
+            onClick={() => setShowMenu((v) => !v)}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1.5" />
+              <circle cx="12" cy="12" r="1.5" />
+              <circle cx="12" cy="19" r="1.5" />
+            </svg>
+          </button>
+          {showMenu && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setShowMenu(false)} />
+              <div
+                className="context-menu"
+                style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, zIndex: 999, minWidth: 120 }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button className="context-menu-item" onClick={() => { setShowMenu(false); navigate("/settings"); }}>
+                  <span>设置</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>

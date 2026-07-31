@@ -7,23 +7,7 @@ use tauri::Manager;
 const STEPFUN_BASE: &str = "https://api.stepfun.com/v1";
 
 fn get_api_key() -> Result<String, String> {
-    let candidates = vec![
-        PathBuf::from("config.json"),
-        PathBuf::from("../config.json"),
-        PathBuf::from("../../config.json"),
-    ];
-    for path in &candidates {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(key) = parsed.get("stepfun_api_key").and_then(|v| v.as_str()) {
-                    if !key.is_empty() {
-                        return Ok(key.to_string());
-                    }
-                }
-            }
-        }
-    }
-    Err("config.json not found or missing stepfun_api_key field".to_string())
+    crate::commands::config::get_api_key("stepfun")
 }
 
 fn build_client() -> Result<reqwest::Client, String> {
@@ -89,14 +73,26 @@ pub async fn generate_image(
     cfg_scale: Option<f64>,
     negative_prompt: Option<String>,
     reference_image_path: Option<String>,
+    platform_id: Option<String>,
 ) -> Result<GenerateImageResult, String> {
-    let api_key = get_api_key()?;
     let client = build_client()?;
+
+    // Resolve endpoint & auth: custom platform or default StepFun
+    let (base_url, endpoint_path, resolved_model, api_key) =
+        if let Some(ref pid) = platform_id {
+            let (base, path, m, key) =
+                crate::commands::config::resolve_platform(pid, "generate-image")?;
+            let key = key.ok_or_else(|| format!("Platform '{}' has no API key", pid))?;
+            (base, path, m, key)
+        } else {
+            let key = get_api_key()?;
+            (STEPFUN_BASE.to_string(), "/images/generations".to_string(), model, key)
+        };
 
     let size = size.unwrap_or_else(|| "1024x1024".to_string());
 
     let mut body = serde_json::json!({
-        "model": model,
+        "model": resolved_model,
         "prompt": prompt,
         "size": size,
         "response_format": "url",
@@ -114,8 +110,8 @@ pub async fn generate_image(
         }
     }
 
-    // If reference image provided, use image2image endpoint with step-2x-large
-    let (endpoint, final_body) = if let Some(ref_path) = &reference_image_path {
+    // If reference image provided, use image2image
+    let (final_path, final_body) = if let Some(ref_path) = &reference_image_path {
         if let Ok(bytes) = tokio::fs::read(ref_path).await {
             use base64::Engine;
             let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
@@ -125,7 +121,7 @@ pub async fn generate_image(
                 .unwrap_or("png");
             let source_url = format!("data:image/{};base64,{}", ext, b64);
             let mut img2img_body = serde_json::json!({
-                "model": "step-2x-large",
+                "model": resolved_model,
                 "prompt": prompt,
                 "source_url": source_url,
                 "source_weight": 0.5,
@@ -134,17 +130,22 @@ pub async fn generate_image(
             });
             if let Some(s) = steps { img2img_body["steps"] = serde_json::json!(s); }
             if let Some(c) = cfg_scale { img2img_body["cfg_scale"] = serde_json::json!(c); }
-            ("/images/image2image", img2img_body)
+            // For custom platforms use the same endpoint_path; for default use image2image
+            let p = if platform_id.is_some() { endpoint_path.clone() } else { "/images/image2image".to_string() };
+            (p, img2img_body)
         } else {
-            ("/images/generations", body)
+            (endpoint_path.clone(), body)
         }
     } else {
-        ("/images/generations", body)
+        (endpoint_path.clone(), body)
     };
 
+    let url = format!("{}{}", base_url, final_path);
+    let auth_header = format!("Bearer {}", &api_key);
+
     let resp = client
-        .post(format!("{}{}", STEPFUN_BASE, endpoint))
-        .header("Authorization", format!("Bearer {}", &api_key))
+        .post(&url)
+        .header("Authorization", &auth_header)
         .header("Content-Type", "application/json")
         .json(&final_body)
         .send()
@@ -211,9 +212,20 @@ pub async fn edit_image(
     steps: Option<i32>,
     cfg_scale: Option<f64>,
     negative_prompt: Option<String>,
+    platform_id: Option<String>,
 ) -> Result<GenerateImageResult, String> {
-    let api_key = get_api_key()?;
     let client = build_client()?;
+
+    let (base_url, endpoint_path, resolved_model, api_key) =
+        if let Some(ref pid) = platform_id {
+            let (base, path, m, key) =
+                crate::commands::config::resolve_platform(pid, "edit-image")?;
+            let key = key.ok_or_else(|| format!("Platform '{}' has no API key", pid))?;
+            (base, path, m, key)
+        } else {
+            let key = get_api_key()?;
+            (STEPFUN_BASE.to_string(), "/images/edits".to_string(), "step-image-edit-2".to_string(), key)
+        };
 
     let file_bytes = tokio::fs::read(&image_path)
         .await
@@ -236,7 +248,7 @@ pub async fn edit_image(
 
     let mut form = reqwest::multipart::Form::new()
         .part("image", part)
-        .text("model", "step-image-edit-2".to_string())
+        .text("model", resolved_model.clone())
         .text("prompt", prompt.clone())
         .text("response_format", "url".to_string());
 
@@ -252,9 +264,12 @@ pub async fn edit_image(
         }
     }
 
+    let url = format!("{}{}", base_url, endpoint_path);
+    let auth_header = format!("Bearer {}", &api_key);
+
     let resp = client
-        .post(format!("{}/images/edits", STEPFUN_BASE))
-        .header("Authorization", format!("Bearer {}", &api_key))
+        .post(&url)
+        .header("Authorization", &auth_header)
         .multipart(form)
         .send()
         .await

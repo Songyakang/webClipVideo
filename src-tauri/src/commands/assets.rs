@@ -84,8 +84,9 @@ pub async fn list_project_assets(app: AppHandle) -> Result<Vec<AssetInfo>, Strin
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|_| filename.clone());
 
-            let node_id = relative_path
-                .split(std::path::MAIN_SEPARATOR)
+            // Filename format: {nodeId}-{timestamp}.{ext}
+            let node_id = filename
+                .split('-')
                 .next()
                 .unwrap_or("unknown")
                 .to_string();

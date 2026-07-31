@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useReducer, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import ImageToolbox from "../ImageToolbox";
+import { Toolbox } from "../toolbox";
 
 const tryParsePrompt = (content: string): string => {
   try {
@@ -109,7 +109,7 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
       <Handle type="source" position={Position.Right} className="flow-handle" />
       {selected && !isEditing && !dragging && !showOptions && (
         <div className="node-toolbox-wrapper">
-          <ImageToolbox
+          <Toolbox
             nodeId={id}
             nodeType="text"
             defaultPrompt={defaultPrompt}

@@ -64,6 +64,7 @@ export function useGenerateImage(
     prompt: string,
     model: string,
     options?: GenerateImageOptions,
+    platformId?: string,
   ) => {
     if (!prompt.trim()) {
       showToast("请输入提示词", "error");
@@ -99,6 +100,7 @@ export function useGenerateImage(
           steps: options?.steps || null,
           cfgScale: options?.cfgScale || null,
           negativePrompt: options?.negativePrompt || null,
+          platformId: platformId || null,
         });
       } else {
         result = await invoke<GenerateImageResult>("generate_image", {
@@ -111,6 +113,7 @@ export function useGenerateImage(
           cfgScale: options?.cfgScale || null,
           negativePrompt: options?.negativePrompt || null,
           referenceImagePath: refImagePath,
+          platformId: platformId || null,
         });
       }
 
@@ -182,6 +185,7 @@ export function useGenerateImage(
     nodeId: string,
     prompt: string,
     provider: string,
+    platformId?: string,
   ): Promise<string> => {
     if (!prompt.trim()) {
       showToast("请输入提示词", "error");
@@ -207,6 +211,7 @@ export function useGenerateImage(
         provider,
         imagePath: refImagePath,
         text: prompt.trim(),
+        platformId: platformId || null,
       });
 
       if (!result.optimized_prompt.trim()) {

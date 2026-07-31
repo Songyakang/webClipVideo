@@ -1,51 +1,86 @@
-use std::process::Command;
+/// Voice TTS and timbre conversion commands.
+///
+/// TTS pipeline (in priority order):
+///   1. StepFun voice cloning + TTS — for "original" voice (clones reference audio)
+///   2. StepFun preset TTS — for known preset voices
+///   3. Edge TTS (pure-Rust WebSocket) — fallback for other voices
+///
+/// Timbre conversion is now handled by StepFun's voice preview API,
+/// which clones + synthesizes in one shot. No more Python/OpenVoice.
+
 use std::path::Path;
+use std::process::Command;
 
-fn voice_cli_script() -> String {
-    let home = std::env::var("HOME").unwrap_or_default();
-    format!("{}/Desktop/奇思妙想/webVideoClip/scripts/voice_cli.py", home)
-}
-
-/// Synthesize text to speech by calling voice_cli.py
+/// Synthesize text to speech. Routes to the best available TTS backend.
 pub fn synthesize(text: &str, voice: &str, wav_out: &str) -> Result<(), String> {
     if text.trim().is_empty() {
         return Err("Text is empty".into());
     }
 
-    let script = voice_cli_script();
-    let status = Command::new("python3")
-        .args([&script, "tts", text, wav_out, "--voice", voice])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .status()
-        .map_err(|e| format!("Failed to run voice_cli.py tts: {}", e))?;
-
-    if !status.success() {
-        return Err("TTS synthesis failed".into());
+    // Route to StepFun preset TTS if the voice matches a known preset
+    if crate::voice::stepfun_tts::is_stepfun_preset(voice) {
+        return synthesize_stepfun(text, voice, wav_out);
     }
 
-    Ok(())
+    // Otherwise use Edge TTS (pure Rust WebSocket)
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+
+    rt.block_on(crate::voice::tts::synthesize(text, voice, wav_out))
 }
 
-/// Apply tone color conversion to match target speaker (Phase 2)
-pub fn convert_timbre(src_wav: &str, ref_wav: &str, output_wav: &str) -> Result<(), String> {
+/// Synthesize using StepFun preset voice.
+fn synthesize_stepfun(text: &str, voice: &str, wav_out: &str) -> Result<(), String> {
+    let stepfun_voice = crate::voice::stepfun_tts::map_to_stepfun_voice(voice);
+    let model = "step-tts-mini";
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+
+    rt.block_on(crate::voice::stepfun_tts::synthesize_preset(
+        text,
+        stepfun_voice,
+        model,
+        wav_out,
+    ))
+}
+
+/// Apply timbre conversion: clones the reference speaker's voice and
+/// synthesizes the text in that voice using StepFun's voice preview API.
+///
+/// Replaces the old `python3 voice_cli.py convert` (OpenVoice).
+///
+/// # Arguments
+/// * `ref_wav` - Reference audio with target speaker's voice (5-10s WAV)
+/// * `text` - Text to synthesize in the cloned voice
+/// * `wav_out` - Output WAV file path
+pub fn convert_timbre(ref_wav: &str, text: &str, wav_out: &str) -> Result<(), String> {
     if !Path::new(ref_wav).exists() {
         return Err("Reference audio not found. Run voice extraction first.".into());
     }
 
-    let script = voice_cli_script();
-    let status = Command::new("python3")
-        .args([&script, "convert", src_wav, ref_wav, output_wav])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .status()
-        .map_err(|e| format!("Failed to run voice_cli.py convert: {}", e))?;
-
-    if !status.success() {
-        return Err("Voice conversion failed".into());
+    if text.trim().is_empty() {
+        return Err("Text is empty".into());
     }
 
-    Ok(())
+    let model = "stepaudio-2.5-tts";
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+
+    rt.block_on(crate::voice::stepfun_tts::synthesize_cloned(
+        ref_wav,
+        text,
+        model,
+        None, // no special instruction by default
+        wav_out,
+    ))
 }
 
 /// Adjust playback speed of a WAV file to match target duration using ffmpeg atempo.
@@ -86,7 +121,6 @@ pub fn adjust_speed(input: &str, output: &str, target_duration_secs: f64) -> Res
     }
 
     // Build atempo chain: each atempo supports [0.5, 2.0]
-    // Split ratio into multiple atempo filters if needed
     let mut parts = Vec::new();
     let mut remaining = speed_ratio;
 

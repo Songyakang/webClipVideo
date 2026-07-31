@@ -60,46 +60,41 @@ pub async fn synthesize_speech(
     voice: String,
 ) -> Result<String, String> {
     let temp_dir = std::env::temp_dir();
-    let raw_filename = format!("tts_raw_{}_{}.wav", node_id, item_id);
-    let converted_filename = format!("tts_cvt_{}_{}.wav", node_id, item_id);
-    let final_filename = format!("tts_{}_{}.wav", node_id, item_id);
-    let raw_path = temp_dir.join(&raw_filename);
-    let converted_path = temp_dir.join(&converted_filename);
+    let tts_filename = format!("tts_{}_{}.wav", node_id, item_id);
+    let final_filename = format!("tts_final_{}_{}.wav", node_id, item_id);
+    let tts_path = temp_dir.join(&tts_filename);
     let final_path = temp_dir.join(&final_filename);
 
-    // Step 1: TTS synthesis with selected voice
-    voice_tts::synthesize(
-        &text,
-        &voice,
-        raw_path.to_str().unwrap_or("/tmp/tts_raw.wav"),
-    )?;
-
-    // Step 2: Tone conversion (only for "original" voice)
     let use_original = voice == "original";
     let ref_wav = temp_dir.join(format!("voice_ref_{}.wav", node_id));
 
-    let after_tts = if use_original && ref_wav.exists() {
+    // ── Step 1: TTS (or clone preview for "original" voice) ──
+    if use_original && ref_wav.exists() {
+        // StepFun voice cloning + TTS in one shot:
+        // Upload ref audio → clone voice → synthesize text in cloned voice
         voice_tts::convert_timbre(
-            raw_path.to_str().unwrap_or(""),
             ref_wav.to_str().unwrap_or(""),
-            converted_path.to_str().unwrap_or(""),
+            &text,
+            tts_path.to_str().unwrap_or(""),
         )?;
-        let _ = std::fs::remove_file(&raw_path);
-        converted_path
     } else {
-        raw_path
-    };
+        // Standard TTS (StepFun preset or Edge TTS fallback)
+        voice_tts::synthesize(
+            &text,
+            &voice,
+            tts_path.to_str().unwrap_or("/tmp/tts.wav"),
+        )?;
+    }
 
-    // Step 3: Speed adjustment to match original duration
+    // ── Step 2: Speed adjustment to match target duration ──
     voice_tts::adjust_speed(
-        after_tts.to_str().unwrap_or(""),
+        tts_path.to_str().unwrap_or(""),
         final_path.to_str().unwrap_or(""),
         target_duration,
     )?;
 
-    if use_original && ref_wav.exists() {
-        let _ = std::fs::remove_file(&after_tts);
-    }
+    // Clean up intermediate TTS file
+    let _ = std::fs::remove_file(&tts_path);
 
     Ok(final_path.to_string_lossy().to_string())
 }

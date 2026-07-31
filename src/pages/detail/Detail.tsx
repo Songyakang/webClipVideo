@@ -34,6 +34,7 @@ import DirectorNode from "./nodes/DirectorNode";
 import type { FlowNode } from "./nodes/types";
 import SubtitleOverlay from "./SubtitleOverlay";
 import DirectorOverlay from "./DirectorOverlay";
+import TimelineOverlay from "./timeline/TimelineOverlay";
 import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
 import AssetLibrary from "./AssetLibrary";
@@ -61,6 +62,7 @@ export default function Detail() {
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
+  const [timelineNodeId, setTimelineNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [zoom, setZoom] = useState(0.5);
   const [showAssetLibrary, setShowAssetLibrary] = useState(false);
@@ -149,7 +151,6 @@ export default function Detail() {
     });
 
     dagre.layout(g);
-
     setNodes((prev) =>
       prev.map((node) => {
         const pos = g.node(node.id);
@@ -191,9 +192,11 @@ export default function Detail() {
   // Tauri native drag-drop listener
   const unlistenRef = useRef<(() => void) | null>(null);
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        if (cancelled) return;
         unlistenRef.current = await getCurrentWebview().onDragDropEvent(async (event) => {
           const { type } = event.payload;
 
@@ -250,9 +253,18 @@ export default function Detail() {
             }
           }
         });
+        // Clean up any stale listener from a previous effect run (StrictMode safety)
+        if (cancelled) {
+          unlistenRef.current?.();
+          unlistenRef.current = null;
+        }
       } catch { /* Tauri API not available */ }
     })();
-    return () => { unlistenRef.current?.(); unlistenRef.current = null; };
+    return () => {
+      cancelled = true;
+      unlistenRef.current?.();
+      unlistenRef.current = null;
+    };
   }, []);
 
   const [dragOver, setDragOver] = useState(false);
@@ -316,6 +328,10 @@ export default function Detail() {
     );
   }, [addNode, addEdge, setNodes]);
 
+  const handleOpenTimeline = useCallback((nodeId: string) => {
+    setTimelineNodeId(nodeId);
+  }, []);
+
   const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes, selectedNodes,
     addNode, deleteNode, duplicateNode,
@@ -324,6 +340,7 @@ export default function Detail() {
     onUndo, onRedo,
     createTextNode,
     onReversePromptFromImage: handleReversePromptFromImage,
+    onOpenTimeline: handleOpenTimeline,
   });
 
   useKeyboardShortcuts({
@@ -475,6 +492,7 @@ export default function Detail() {
           setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
         }}
         onPaneContextMenu={(e) => {
+          console.log("pane context menu", nodes);
           e.preventDefault();
           setSelectedNodes([]);
           setNodes((nds) =>
@@ -589,6 +607,22 @@ export default function Detail() {
         />
       )}
 
+      {timelineNodeId && (() => {
+        const tlNode = nodes.find((n) => n.id === timelineNodeId);
+        if (!tlNode) return null;
+        const data = tlNode.data as any;
+        return (
+          <TimelineOverlay
+            projectId={id!}
+            initialAssetPath={data.assetPath}
+            initialFileUrl={data.fileUrl}
+            initialTitle={data.label || data.content || "素材"}
+            projectNodes={nodes}
+            onClose={() => setTimelineNodeId(null)}
+          />
+        );
+      })()}
+
       {menu && (
         <>
           <div
@@ -615,6 +649,7 @@ export default function Detail() {
           </div>
         </div>
       )}
+
     </div>
     </GenerateContext.Provider>
   );

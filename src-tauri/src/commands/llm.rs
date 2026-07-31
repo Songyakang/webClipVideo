@@ -1,21 +1,8 @@
 use base64::Engine;
 use serde::Serialize;
-use std::path::PathBuf;
 
-fn get_config() -> Result<serde_json::Value, String> {
-    let candidates = vec![
-        PathBuf::from("config.json"),
-        PathBuf::from("../config.json"),
-        PathBuf::from("../../config.json"),
-    ];
-    for path in &candidates {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-                return Ok(parsed);
-            }
-        }
-    }
-    Err("config.json not found".to_string())
+fn get_api_key(service: &str) -> Result<String, String> {
+    crate::commands::config::get_api_key(service)
 }
 
 fn build_client() -> Result<reqwest::Client, String> {
@@ -50,32 +37,31 @@ pub async fn optimize_prompt(
     text: String,
     custom_endpoint: Option<String>,
     custom_model: Option<String>,
+    platform_id: Option<String>,
 ) -> Result<OptimizePromptResult, String> {
-    let config = get_config()?;
     let client = build_client()?;
 
-    let (api_key, endpoint, model) = match provider.as_str() {
-        "deepseek" => {
-            let key = config
-                .get("deepseek_api_key")
-                .and_then(|v| v.as_str())
-                .filter(|k| !k.is_empty())
-                .ok_or_else(|| "config.json missing deepseek_api_key".to_string())?;
-            let ep = custom_endpoint.unwrap_or_else(|| "https://api.deepseek.com/v1/chat/completions".to_string());
-            let m = custom_model.unwrap_or_else(|| "deepseek-chat".to_string());
-            (key.to_string(), ep, m)
+    let (api_key, endpoint, model) = if let Some(ref pid) = platform_id {
+        let (base, path, m, key) =
+            crate::commands::config::resolve_platform(pid, "chat")?;
+        let key = key.ok_or_else(|| format!("Platform '{}' has no API key", pid))?;
+        (key, format!("{}{}", base, path), m)
+    } else {
+        match provider.as_str() {
+            "deepseek" => {
+                let key = get_api_key("deepseek")?;
+                let ep = custom_endpoint.unwrap_or_else(|| "https://api.deepseek.com/v1/chat/completions".to_string());
+                let m = custom_model.unwrap_or_else(|| "deepseek-chat".to_string());
+                (key, ep, m)
+            }
+            "stepfun" => {
+                let key = get_api_key("stepfun")?;
+                let ep = custom_endpoint.unwrap_or_else(|| "https://api.stepfun.com/v1/chat/completions".to_string());
+                let m = custom_model.unwrap_or_else(|| "step-2x-large".to_string());
+                (key, ep, m)
+            }
+            _ => return Err(format!("unsupported provider: {}. use 'deepseek' or 'stepfun'", provider)),
         }
-        "stepfun" => {
-            let key = config
-                .get("stepfun_api_key")
-                .and_then(|v| v.as_str())
-                .filter(|k| !k.is_empty())
-                .ok_or_else(|| "config.json missing stepfun_api_key".to_string())?;
-            let ep = custom_endpoint.unwrap_or_else(|| "https://api.stepfun.com/v1/chat/completions".to_string());
-            let m = custom_model.unwrap_or_else(|| "step-2x-large".to_string());
-            (key.to_string(), ep, m)
-        }
-        _ => return Err(format!("unsupported provider: {}. use 'deepseek' or 'stepfun'", provider)),
     };
 
     let body = serde_json::json!({
@@ -129,8 +115,8 @@ pub async fn reverse_prompt(
     text: String,
     custom_endpoint: Option<String>,
     custom_model: Option<String>,
+    platform_id: Option<String>,
 ) -> Result<OptimizePromptResult, String> {
-    let config = get_config()?;
     let client = build_client()?;
 
     let image_bytes = tokio::fs::read(&image_path)
@@ -150,23 +136,26 @@ pub async fn reverse_prompt(
     let b64 = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
     let data_url = format!("data:{};base64,{}", mime, b64);
 
-    let (api_key, endpoint, model) = match provider.as_str() {
-        "stepfun" => {
-            let key = config
-                .get("stepfun_api_key")
-                .and_then(|v| v.as_str())
-                .filter(|k| !k.is_empty())
-                .ok_or_else(|| "config.json missing stepfun_api_key".to_string())?;
-            let ep = custom_endpoint
-                .unwrap_or_else(|| "https://api.stepfun.com/v1/chat/completions".to_string());
-            let m = custom_model.unwrap_or_else(|| "step-3.7-flash".to_string());
-            (key.to_string(), ep, m)
-        }
-        _ => {
-            return Err(format!(
-                "unsupported provider: {}. reverse prompt requires a vision-capable model, use 'stepfun'",
-                provider
-            ))
+    let (api_key, endpoint, model) = if let Some(ref pid) = platform_id {
+        let (base, path, m, key) =
+            crate::commands::config::resolve_platform(pid, "reverse-prompt")?;
+        let key = key.ok_or_else(|| format!("Platform '{}' has no API key", pid))?;
+        (key, format!("{}{}", base, path), m)
+    } else {
+        match provider.as_str() {
+            "stepfun" => {
+                let key = get_api_key("stepfun")?;
+                let ep = custom_endpoint
+                    .unwrap_or_else(|| "https://api.stepfun.com/v1/chat/completions".to_string());
+                let m = custom_model.unwrap_or_else(|| "step-3.7-flash".to_string());
+                (key, ep, m)
+            }
+            _ => {
+                return Err(format!(
+                    "unsupported provider: {}. reverse prompt requires a vision-capable model, use 'stepfun'",
+                    provider
+                ))
+            }
         }
     };
 

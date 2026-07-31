@@ -1,24 +1,24 @@
-import { useCallback, useReducer, memo } from "react";
+import { useState, useCallback, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import VideoTrimmer from "../VideoTrimmer";
+import { Toolbox } from "../toolbox";
 
-export default memo(function VideoNode({ data, selected }: NodeProps) {
+const FIXED_W = 640;
+
+export default memo(function VideoNode({ id, data, selected, dragging }: NodeProps) {
   const d = data as any;
-  const w = d.w || 700;
-  const h = d.h || 400;
   const isUpload = d.type === "video-upload";
   const hasSrc = isUpload && d.fileUrl;
-  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+  const [videoH, setVideoH] = useState(360); // default 16:9
 
-  const videoRefCallback = useCallback((el: HTMLVideoElement | null) => {
-    d.videoEl = el;
+  const onMeta = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    if (v.videoWidth && v.videoHeight) {
+      setVideoH((v.videoHeight / v.videoWidth) * FIXED_W);
+    }
   }, []);
 
-  const handleTrimmed = useCallback((newFileUrl: string, newAssetPath: string) => {
-    d.fileUrl = newFileUrl;
-    d.assetPath = newAssetPath;
-    forceUpdate();
-  }, []);
+  const w = FIXED_W;
+  const h = videoH;
 
   return (
     <div
@@ -30,10 +30,10 @@ export default memo(function VideoNode({ data, selected }: NodeProps) {
         <div className="node-video-wrap" style={{ width: w, height: h }}>
           <video
             key={d.fileUrl}
-            ref={videoRefCallback}
+            ref={(el) => { d.videoEl = el; }}
             src={d.fileUrl}
-            playsInline
-            preload="metadata"
+            playsInline preload="metadata"
+            onLoadedMetadata={onMeta}
             className="node-video-el"
             controls
           />
@@ -48,13 +48,9 @@ export default memo(function VideoNode({ data, selected }: NodeProps) {
       )}
       <Handle type="source" position={Position.Right} className="flow-handle" />
 
-      {selected && hasSrc && d.assetPath && (
+      {selected && !dragging && hasSrc && (
         <div className="node-toolbox-wrapper">
-          <VideoTrimmer
-            videoEl={d.videoEl || null}
-            assetPath={d.assetPath}
-            onTrimmed={handleTrimmed}
-          />
+          <Toolbox nodeId={id} nodeType="video" />
         </div>
       )}
     </div>

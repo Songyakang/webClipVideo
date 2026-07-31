@@ -1,9 +1,15 @@
-use std::io::BufRead;
+/// Subtitle removal commands — pure Rust implementation.
+///
+/// Replaces the old `python3 inpaint_cli.py` subprocess calls with
+/// direct Rust image processing via the `crate::inpaint` module.
+
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use serde::Serialize;
 use tauri::Emitter;
 use tauri::Manager;
+
+use crate::inpaint;
 
 #[derive(Clone, Serialize)]
 pub struct InpaintProgress {
@@ -12,22 +18,58 @@ pub struct InpaintProgress {
     pub percent: f64,
 }
 
-fn resolve_script_path() -> Result<PathBuf, String> {
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let candidates = vec![
-        cwd.join("scripts").join("inpaint_cli.py"),
-        cwd.join("../scripts").join("inpaint_cli.py"),
-        cwd.join("../../scripts").join("inpaint_cli.py"),
-    ];
-    for p in &candidates {
-        if p.exists() {
-            return Ok(p.clone());
+/// Extract all video frames as PNG images into a directory using ffmpeg.
+fn extract_frames(video_path: &str, frames_dir: &str) -> Result<f64, String> {
+    // Get video info via ffprobe
+    let fps = get_video_fps(video_path)?;
+
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-i", video_path,
+            "-f", "image2",
+            "-q:v", "2",
+            &format!("{}/frame_%06d.png", frames_dir),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .status()
+        .map_err(|e| format!("Failed to run ffmpeg frame extraction: {}", e))?;
+
+    if !status.success() {
+        return Err("FFmpeg frame extraction failed".into());
+    }
+
+    Ok(fps)
+}
+
+/// Get video FPS via ffprobe.
+fn get_video_fps(video_path: &str) -> Result<f64, String> {
+    let output = Command::new("ffprobe")
+        .args([
+            "-v", "quiet",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=r_frame_rate",
+            "-of", "csv=p=0",
+            video_path,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run ffprobe: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let fps_str = stdout.trim();
+
+    // ffprobe outputs frame rate as "24000/1001" or "30/1"
+    if let Some((num, den)) = fps_str.split_once('/') {
+        let n: f64 = num.trim().parse().unwrap_or(30.0);
+        let d: f64 = den.trim().parse().unwrap_or(1.0);
+        if d > 0.0 {
+            return Ok(n / d);
         }
     }
-    Err(format!(
-        "inpaint_cli.py not found. Tried: {}",
-        candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
-    ))
+
+    // Try parsing as plain float
+    fps_str.parse().map_err(|_| format!("Cannot parse FPS: {}", fps_str))
 }
 
 #[tauri::command]
@@ -77,74 +119,25 @@ pub async fn remove_hard_subtitles(
         .join(stem.as_ref());
     let _ = std::fs::create_dir_all(&frames_dir);
 
-    let script_path = resolve_script_path()?;
+    // ── Step 1: Extract all video frames to PNG ──
+    let fps = extract_frames(&video_path, frames_dir.to_str().unwrap_or("/tmp/inpaint_frames"))?;
 
-    // Step 1: Python inpainting, outputs PNG frames to temp dir
-    let mut child = Command::new("python3")
-        .args([
-            script_path.to_str().unwrap_or("scripts/inpaint_cli.py"),
-            "process",
-            &video_path,
-            "--frames-dir",
-            frames_dir.to_str().unwrap_or(""),
-            "--x", &x.to_string(),
-            "--y", &y.to_string(),
-            "--w", &width.to_string(),
-            "--h", &height.to_string(),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start inpainting process: {}", e))?;
-
-    let stdout = child.stdout.take().ok_or("No stdout")?;
-    let reader = std::io::BufReader::new(stdout);
-    let mut done_info: Option<serde_json::Value> = None;
-
-    for line in reader.lines() {
-        let line = line.map_err(|e| format!("Read error: {}", e))?;
-        if let Ok(progress) = serde_json::from_str::<serde_json::Value>(&line) {
-            if progress.get("error").is_some() {
-                let _ = child.kill();
-                let _ = std::fs::remove_dir_all(&frames_dir);
-                return Err(progress["error"].as_str().unwrap_or("unknown error").to_string());
-            }
-            if progress.get("status").is_some() {
-                done_info = Some(progress);
-                break;
-            }
-            let payload = InpaintProgress {
-                frame: progress["frame"].as_i64().unwrap_or(0) as i32,
-                total: progress["total"].as_i64().unwrap_or(1) as i32,
-                percent: progress["percent"].as_f64().unwrap_or(0.0),
-            };
-            let _ = app.emit("inpaint-progress", payload);
-        }
-    }
-
-    let status = child.wait().map_err(|e| format!("Process error: {}", e))?;
-    if !status.success() {
-        let mut stderr_output = String::new();
-        if let Some(mut stderr) = child.stderr {
-            use std::io::Read;
-            let _ = stderr.read_to_string(&mut stderr_output);
-        }
-        let _ = std::fs::remove_dir_all(&frames_dir);
-        return Err(format!("Inpainting process failed: {}", stderr_output));
-    }
-
-    let info = done_info.ok_or("No done info from Python process")?;
-    let frame_count = info["frame_count"].as_i64().unwrap_or(0);
-    let fps = info["fps"].as_f64().unwrap_or(30.0);
+    // ── Step 2: Process each frame with pure-Rust inpainting ──
+    let app_handle = app.clone();
+    let frames_dir_clone = frames_dir.clone();
+    let (frame_count, _skipped) = tokio::task::spawn_blocking(move || {
+        process_all_frames(&frames_dir_clone, x, y, width, height, app_handle)
+    })
+    .await
+    .map_err(|e| format!("Frame processing panicked: {}", e))?;
 
     if frame_count == 0 {
         let _ = std::fs::remove_dir_all(&frames_dir);
         return Err("No frames processed".into());
     }
 
-    // Step 2: FFmpeg encode PNG sequence + original audio
-    let zfill = frame_count.to_string().len();
-    let frame_pattern = frames_dir.join(format!("frame_%0{}d.png", zfill));
+    // ── Step 3: FFmpeg encode PNG sequence + original audio ──
+    let frame_pattern = frames_dir.join("frame_%06d.png");
 
     let ffmpeg_status = Command::new("ffmpeg")
         .args([
@@ -192,6 +185,91 @@ pub async fn remove_hard_subtitles(
     Ok(final_out)
 }
 
+/// Process all PNG frames in a directory, applying inpainting to each.
+/// Returns (frame_count, skipped_count).
+fn process_all_frames(
+    frames_dir: &PathBuf,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    app: tauri::AppHandle,
+) -> (usize, usize) {
+    use std::fs;
+
+    // Collect all frame PNGs sorted by name
+    let mut entries: Vec<PathBuf> = Vec::new();
+    if let Ok(dir) = fs::read_dir(frames_dir) {
+        for entry in dir.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "png") {
+                entries.push(path);
+            }
+        }
+    }
+    entries.sort();
+
+    let total = entries.len();
+    let mut frame_idx: usize = 0;
+    let mut skipped: usize = 0;
+    let mut prev_region: Option<image::RgbImage> = None;
+
+    for path in &entries {
+        frame_idx += 1;
+
+        // Read frame
+        let frame = match image::open(path) {
+            Ok(img) => img,
+            Err(_) => continue,
+        };
+
+        // Process frame: detect subtitle + inpaint if needed
+        let (processed, was_inpainted) =
+            inpaint::process_frame(&frame, x, y, width, height);
+
+        if !was_inpainted {
+            skipped += 1;
+            prev_region = None; // reset smoothing across gaps
+            // Frame unchanged, no need to re-save
+        } else {
+            // Apply temporal smoothing with previous inpainted frame
+            let mut rgb = processed.to_rgb8();
+            if let Some(ref prev) = prev_region {
+                inpaint::smooth_region(&mut rgb, prev, x, y, width, height);
+            }
+
+            // Save previous region for next frame
+            let (fw, fh) = (rgb.width(), rgb.height());
+            let max_w = width.min(fw - x);
+            let max_h = height.min(fh - y);
+            if max_w > 0 && max_h > 0 {
+                prev_region = Some(image::imageops::crop_imm(&mut rgb, x, y, max_w, max_h).to_image());
+            }
+
+            // Write processed frame back
+            if let Err(e) = rgb.save(path) {
+                eprintln!("Failed to save frame {}: {}", path.display(), e);
+            }
+        }
+
+        // Emit progress every 10 frames
+        if frame_idx % 10 == 0 || frame_idx == total {
+            let payload = InpaintProgress {
+                frame: frame_idx as i32,
+                total: total as i32,
+                percent: if total > 0 {
+                    (frame_idx as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
+                } else {
+                    0.0
+                },
+            };
+            let _ = app.emit("inpaint-progress", payload);
+        }
+    }
+
+    (frame_idx, skipped)
+}
+
 fn strip_soft_subtitles_inner(input: &str, output: &str) -> Result<(), String> {
     let status = Command::new("ffmpeg")
         .args(["-y", "-i", input, "-sn", "-c", "copy", output])
@@ -234,6 +312,7 @@ pub async fn preview_inpaint_frame(
     let frame_path = tmp_dir.join("inpaint_preview_original.png");
     let result_path = tmp_dir.join("inpaint_preview_clean.png");
 
+    // Step 1: Extract single frame with ffmpeg
     let status = Command::new("ffmpeg")
         .args([
             "-y",
@@ -251,25 +330,12 @@ pub async fn preview_inpaint_frame(
         return Err("Failed to extract frame from video".into());
     }
 
-    let script_path = resolve_script_path()?;
-
-    let output = Command::new("python3")
-        .args([
-            script_path.to_str().unwrap_or("scripts/inpaint_cli.py"),
-            "preview",
-            frame_path.to_str().unwrap_or(""),
-            result_path.to_str().unwrap_or(""),
-            "--x", &x.to_string(),
-            "--y", &y.to_string(),
-            "--w", &width.to_string(),
-            "--h", &height.to_string(),
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run preview: {}", e))?;
-
-    if !output.status.success() {
-        return Err("Preview inpainting failed".into());
-    }
+    // Step 2: Inpaint with pure Rust (replaces python3 inpaint_cli.py preview)
+    inpaint::inpaint_single_image(
+        frame_path.to_str().unwrap_or(""),
+        result_path.to_str().unwrap_or(""),
+        x, y, width, height,
+    )?;
 
     Ok(result_path.to_string_lossy().to_string())
 }

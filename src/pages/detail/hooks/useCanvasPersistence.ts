@@ -15,10 +15,18 @@ export function useCanvasPersistence(
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
   useEffect(() => {
+    // Reset on every clipId change to avoid stale state from previous project
+    loadedRef.current = false;
     let cancelled = false;
 
     loadCanvas(clipId).then(async (data) => {
       if (cancelled) return;
+
+      // Empty canvas — load is complete, mark as ready for auto-save
+      if (data.nodes.length === 0 && data.edges.length === 0) {
+        loadedRef.current = true;
+        return;
+      }
 
       const restoredNodes: FlowNode[] = await Promise.all(
         data.nodes.map(async (n) => {

@@ -18,10 +18,11 @@ interface MenuActionDeps {
   onRedo: () => void;
   createTextNode?: (x: number, y: number) => string;
   onReversePromptFromImage?: (imageNodeId: string) => void;
+  onOpenTimeline?: (nodeId: string) => void;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage, onOpenTimeline } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -113,6 +114,12 @@ export function useMenuActions(deps: MenuActionDeps) {
         setMenu(null);
         onRedo();
         break;
+      case "打开剪辑台": {
+        if (!menu?.nodeId) break;
+        setMenu(null);
+        onOpenTimeline?.(menu.nodeId);
+        break;
+      }
       case "复制节点":
       case "创建副本":
         if (menu.nodeId) duplicateNode(menu.nodeId);
@@ -121,7 +128,7 @@ export function useMenuActions(deps: MenuActionDeps) {
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage, onOpenTimeline]);
 
   return { handleMenuAction };
 }
