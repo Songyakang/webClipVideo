@@ -63,8 +63,8 @@ export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
   return dbSaveTrack(track);
 }
 
-export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
-  return dbLoadTrack(nodeId);
+export async function loadSubtitleTrack(nodeId: string, clipId?: string): Promise<SubtitleTrack | null> {
+  return dbLoadTrack(nodeId, clipId);
 }
 
 export async function saveTimeline(projectId: string, data: TimelineData): Promise<void> {

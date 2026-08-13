@@ -645,30 +645,45 @@ pub fn db_save_subtitle(db: State<Database>, track: SubtitleInput) -> Result<(),
 pub fn db_load_subtitle(
     db: State<Database>,
     node_id: String,
+    clip_id: String,
 ) -> Result<Option<Value>, String> {
     let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
-    let mut stmt = conn
-        .prepare("SELECT id, items, language, status FROM subtitles WHERE id = ?1")
-        .map_err(|e| format!("prepare: {}", e))?;
 
-    let result: Option<Value> = stmt
-        .query_row(rusqlite::params![node_id], |row| {
-            let id: String = row.get("id")?;
-            let items_str: String = row.get("items")?;
-            let items: Value =
-                serde_json::from_str(&items_str).unwrap_or(Value::Array(vec![]));
-            let language: String = row.get("language")?;
-            let status: String = row.get("status")?;
+    let row_to_value = |row: &rusqlite::Row| -> rusqlite::Result<Value> {
+        let id: String = row.get("id")?;
+        let items_str: String = row.get("items")?;
+        let items: Value = serde_json::from_str(&items_str).unwrap_or(Value::Array(vec![]));
+        let language: String = row.get("language")?;
+        let status: String = row.get("status")?;
+        Ok(serde_json::json!({
+            "id": id,
+            "items": items,
+            "language": language,
+            "status": status,
+        }))
+    };
 
-            Ok(serde_json::json!({
-                "id": id,
-                "items": items,
-                "language": language,
-                "status": status,
-            }))
-        })
+    // 主查询：按 (id, clip_id) 精确匹配（复合主键）
+    let result: Option<Value> = conn
+        .query_row(
+            "SELECT id, items, language, status FROM subtitles WHERE id = ?1 AND clip_id = ?2",
+            rusqlite::params![node_id, clip_id],
+            |row| row_to_value(row),
+        )
         .ok();
-    Ok(result)
+
+    // 兼容旧数据：clip_id 为空的历史行按 id 兜底
+    if result.is_some() {
+        return Ok(result);
+    }
+    let legacy: Option<Value> = conn
+        .query_row(
+            "SELECT id, items, language, status FROM subtitles WHERE id = ?1 LIMIT 1",
+            rusqlite::params![node_id],
+            |row| row_to_value(row),
+        )
+        .ok();
+    Ok(legacy)
 }
 
 // ---------------------------------------------------------------------------

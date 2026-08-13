@@ -239,8 +239,8 @@ export async function saveSubtitleTrack(track: SubtitleTrack): Promise<void> {
   });
 }
 
-export async function loadSubtitleTrack(nodeId: string): Promise<SubtitleTrack | null> {
-  const result = await invoke<any | null>("db_load_subtitle", { nodeId });
+export async function loadSubtitleTrack(nodeId: string, clipId?: string): Promise<SubtitleTrack | null> {
+  const result = await invoke<any | null>("db_load_subtitle", { nodeId, clipId: clipId ?? "" });
   if (!result) return null;
   return {
     id: result.id,

@@ -161,22 +161,23 @@ export default function SubtitlePanel({ nodeId, videoEl, videoAssetPath, project
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    loadSubtitleTrack(nodeId).then((saved) => {
+    loadSubtitleTrack(nodeId, projectId).then((saved) => {
       if (saved) {
         dispatch({ type: "SET_TRACK", track: saved });
       }
       loadedRef.current = true;
     });
-  }, [nodeId]);
+  }, [nodeId, projectId]);
 
   useEffect(() => {
     if (!loadedRef.current) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveSubtitleTrack(track);
+      // 带上 clipId：字幕主键为 (id, clip_id)，跨片段同 id 节点互不覆盖
+      saveSubtitleTrack({ ...track, clipId: projectId || "" } as SubtitleTrack);
     }, 500);
     return () => clearTimeout(saveTimerRef.current);
-  }, [track]);
+  }, [track, projectId]);
 
   const duration = videoEl?.duration || 0;
 
