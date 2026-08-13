@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { parseSRT, toSRT, toASS, formatTime, parseTime } from "./utils";
-import type { SubtitleItem } from "../../../lib/types";
-import { DEFAULT_SUBTITLE_STYLE } from "../../../lib/types";
+import { parseSRT, toSRT, toASS, formatTime, parseTime } from "../../src/pages/detail/subtitle/utils";
+import type { SubtitleItem } from "../../src/lib/types";
+import { DEFAULT_SUBTITLE_STYLE } from "../../src/lib/types";
 
 const sampleSRT = `1
 00:00:01,200 --> 00:00:03,500
