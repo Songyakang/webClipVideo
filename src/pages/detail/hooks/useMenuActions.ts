@@ -17,12 +17,13 @@ interface MenuActionDeps {
   onUndo: () => void;
   onRedo: () => void;
   createTextNode?: (x: number, y: number) => string;
+  createPanoramaNode?: (x: number, y: number) => string;
   onReversePromptFromImage?: (imageNodeId: string) => void;
   onOpenTimeline?: (nodeId: string) => void;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage, onOpenTimeline } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -62,6 +63,16 @@ export function useMenuActions(deps: MenuActionDeps) {
         addNode("video-upload", screenToFlow(menu.x, menu.y).x, screenToFlow(menu.x, menu.y).y);
         setMenu(null);
         break;
+      case "全景图": {
+        const { x, y } = screenToFlow(menu.x, menu.y);
+        if (createPanoramaNode) {
+          createPanoramaNode(x, y);
+        } else {
+          addNode("panorama", x, y);
+        }
+        setMenu(null);
+        break;
+      }
       case "导演台": {
         const { x, y } = screenToFlow(menu.x, menu.y);
         addNode("director", x, y, undefined, {
@@ -128,7 +139,7 @@ export function useMenuActions(deps: MenuActionDeps) {
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, onReversePromptFromImage, onOpenTimeline]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline]);
 
   return { handleMenuAction };
 }

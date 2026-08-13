@@ -31,7 +31,7 @@ export async function saveCanvas(
 
   // Strip DOM refs (videoEl) and map to Rust input shape
   const cleanNodes = nodes.map((n) => {
-    const { videoEl, ...cleanData } = (n.data || {}) as Record<string, unknown>;
+    const { videoEl, onFileUpload, onUploadComplete, ...cleanData } = (n.data || {}) as Record<string, unknown>;
     return {
       id: n.id,
       type: n.type,

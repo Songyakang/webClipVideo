@@ -471,3 +471,44 @@ textarea {
   font-style: italic;
   font-size: 11px;
 }
+
+/* Panorama Node */
+.panorama-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #1a2a3d;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  color: #58a6ff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.panorama-upload-btn:hover {
+  background: #21262d;
+  border-color: #58a6ff;
+}
+.panorama-img-wrap {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.panorama-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.panorama-img-wrap:hover .panorama-hint {
+  opacity: 1;
+}

@@ -31,9 +31,11 @@ import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import DirectorNode from "./nodes/DirectorNode";
+import PanoramaNode from "./nodes/PanoramaNode";
 import type { FlowNode } from "./nodes/types";
 import SubtitleOverlay from "./SubtitleOverlay";
 import DirectorOverlay from "./DirectorOverlay";
+import PanoramaOverlay from "./PanoramaOverlay";
 import TimelineOverlay from "./timeline/TimelineOverlay";
 import EdgeDeleteButton from "./EdgeDeleteButton";
 import TitleEditor from "./TitleEditor";
@@ -49,6 +51,7 @@ const nodeTypes: NodeTypes = {
   video: VideoNode,
   "video-upload": VideoNode,
   director: DirectorNode,
+  panorama: PanoramaNode,
 };
 
 export default function Detail() {
@@ -62,6 +65,7 @@ export default function Detail() {
   const [edgeToDelete, setEdgeToDelete] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
+  const [panoramaNodeId, setPanoramaNodeId] = useState<string | null>(null);
   const [timelineNodeId, setTimelineNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [zoom, setZoom] = useState(0.5);
@@ -311,6 +315,32 @@ export default function Detail() {
     return textNodeId;
   }, [addNode, addEdge, setNodes]);
 
+  const createPanoramaNode = useCallback((x: number, y: number) => {
+    const nodeId = addNode("panorama", x, y);
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                projectId: id!,
+                onUploadComplete: (nid: string, fileUrl: string, assetPath: string) => {
+                  setNodes((prev2) =>
+                    prev2.map((nd) =>
+                      nd.id === nid ? { ...nd, data: { ...nd.data, fileUrl, assetPath } } : nd,
+                    ),
+                  );
+                  resizeMediaNode(nid, "panorama", fileUrl);
+                },
+              },
+            }
+          : n,
+      ),
+    );
+    return nodeId;
+  }, [addNode, setNodes, id, resizeMediaNode]);
+
   const handleReversePromptFromImage = useCallback((imageNodeId: string) => {
     const imgNode = nodesRef.current.find((n) => n.id === imageNodeId);
     if (!imgNode) return;
@@ -339,6 +369,7 @@ export default function Detail() {
     uploadPosRef, fileInputRef,
     onUndo, onRedo,
     createTextNode,
+    createPanoramaNode,
     onReversePromptFromImage: handleReversePromptFromImage,
     onOpenTimeline: handleOpenTimeline,
   });
@@ -385,6 +416,11 @@ export default function Detail() {
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
       setDirectorNodeId(node.id);
+    } else if (node.type === "panorama") {
+      const d = node.data as any;
+      if (d.fileUrl) {
+        setPanoramaNodeId(node.id);
+      }
     } else if (node.type === "text") {
       setSelectedNodes([]);
       setNodes((nds) =>
@@ -606,6 +642,18 @@ export default function Detail() {
           onAddModelFromAsset={handleAddModelFromAsset}
         />
       )}
+
+      {panoramaNodeId && (() => {
+        const panoNode = nodes.find((n) => n.id === panoramaNodeId);
+        const panoUrl = (panoNode?.data as any)?.fileUrl;
+        if (!panoUrl) return null;
+        return (
+          <PanoramaOverlay
+            imageUrl={panoUrl}
+            onClose={() => setPanoramaNodeId(null)}
+          />
+        );
+      })()}
 
       {timelineNodeId && (() => {
         const tlNode = nodes.find((n) => n.id === timelineNodeId);
