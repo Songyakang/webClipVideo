@@ -208,7 +208,7 @@ fn migrate_v1_composite_keys(conn: &Connection) -> Result<(), String> {
             )
             .ok();
         let Some(ddl) = ddl else { continue }; // 表不存在（新库）
-        if !ddl.contains("id TEXT PRIMARY KEY") {
+        if ddl.contains("(id, clip_id)") {
             continue; // 已是复合主键
         }
 
