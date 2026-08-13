@@ -101,6 +101,8 @@ export interface DirectorNodeData {
   models: SceneModel[];
   cameraTracks: CameraTrack[];
   sceneSettings: DirectorSceneSettings;
+  /** 绑定的全景图节点 id（作为场景环境/天空盒） */
+  environmentNodeId?: string;
 }
 
 export interface Generate3DResult {

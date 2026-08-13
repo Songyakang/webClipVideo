@@ -7,6 +7,8 @@ interface UseDirectorEngineOptions {
   models: SceneModel[];
   cameraTrack: CameraTrack;
   sceneSettings: { backgroundColor: string; ambientLight: number; gridVisible: boolean };
+  /** 全景图环境图片 URL（作为 3D 场景天空盒） */
+  environmentImageUrl?: string | null;
 }
 
 // lookAt(pos: Vector3, target: Vector3, up?: Vector3) — 需要传 Vector3 实例
@@ -20,16 +22,54 @@ export function updateCameraFromKeyframe(camObj: Object3D, kf: CameraKeyframe) {
 }
 
 export function useDirectorEngine(options: UseDirectorEngineOptions) {
-  const { canvasRef, models: _models, cameraTrack, sceneSettings } = options;
+  const { canvasRef, models: _models, cameraTrack, sceneSettings, environmentImageUrl } = options;
   const engineRef = useRef<Engine3D | null>(null);
   const sceneRef = useRef<Scene3D | null>(null);
   const modelObjectsRef = useRef<Map<string, Object3D>>(new Map());
   const cameraObjRef = useRef<Object3D | null>(null);
   const gridObjRef = useRef<Object3D | null>(null);
+  const environmentSphereRef = useRef<Object3D | null>(null);
   const animFrameRef = useRef<number>(0);
   const gridVisibleRef = useRef(sceneSettings.gridVisible);
   const initStartedRef = useRef(false);
   gridVisibleRef.current = sceneSettings.gridVisible;
+
+  // Create / remove the panorama environment sphere (skybox).
+  // Texture must be fully loaded BEFORE the sphere enters the scene,
+  // otherwise the render pipeline raises GPUBuffer binding errors.
+  const setEnvironment = useCallback(async (imageUrl: string | null) => {
+    const scene = sceneRef.current;
+    const engine = engineRef.current;
+    if (!scene || !engine) return;
+
+    if (environmentSphereRef.current) {
+      scene.removeChild(environmentSphereRef.current);
+      environmentSphereRef.current = null;
+    }
+    if (!imageUrl) return;
+
+    const orillusion = await import("@orillusion/core");
+    const geo = new orillusion.SphereGeometry(480, 64, 32, 0, Math.PI * 2, 0, Math.PI);
+    const mat = new orillusion.UnLitMaterial(engine.context3D);
+    mat.doubleSide = true;
+    mat.baseColor = new orillusion.Color(1, 1, 1);
+    try {
+      const tex = new orillusion.BitmapTexture2D(true, engine.context3D, "srgb");
+      await tex.load(imageUrl);
+      mat.baseMap = tex;
+    } catch (err) {
+      console.error("[DirectorEngine] environment texture failed:", err);
+      mat.baseColor = new orillusion.Color(0.15, 0.15, 0.2);
+    }
+
+    const obj = new orillusion.Object3D();
+    const mr = obj.addComponent(orillusion.MeshRenderer);
+    mr.geometry = geo;
+    mr.material = mat;
+    obj.transform.localPosition.set(0, 0, 0);
+    scene.addChild(obj);
+    environmentSphereRef.current = obj;
+  }, []);
 
   const initEngine = useCallback(async () => {
     if (initStartedRef.current) return;
@@ -175,8 +215,29 @@ export function useDirectorEngine(options: UseDirectorEngineOptions) {
     } catch (err) {
       console.warn("[initEngine] 测试盒子失败:", err);
     }
+
+    // 6. Environment (panorama skybox) — texture loaded before sphere enters scene
+    if (environmentImageUrl) {
+      await setEnvironment(environmentImageUrl);
+    }
     console.log("[initEngine] 全部初始化完成！");
-  }, [canvasRef, cameraTrack.keyframes]);
+  }, [canvasRef, cameraTrack.keyframes, environmentImageUrl, setEnvironment]);
+
+  // Switch environment at runtime (engine already initialized)
+  const lastEnvUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    const url = environmentImageUrl || null;
+    if (!initStartedRef.current) {
+      // Engine not started yet — initEngine will create the initial environment
+      lastEnvUrlRef.current = url;
+      return;
+    }
+    if (lastEnvUrlRef.current === url) return;
+    lastEnvUrlRef.current = url;
+    setEnvironment(url).catch((err) =>
+      console.error("[DirectorEngine] environment switch failed:", err),
+    );
+  }, [environmentImageUrl, setEnvironment]);
 
   // Sync grid visibility
   useEffect(() => {
@@ -263,8 +324,9 @@ export function useDirectorEngine(options: UseDirectorEngineOptions) {
       ro.disconnect();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       engineRef.current?.dispose?.();
+      environmentSphereRef.current = null;
     };
   }, []);
 
-  return { initEngine, loadModel, clearAllModels, loadModelsForScene, engineRef, sceneRef, cameraObjRef };
+  return { initEngine, loadModel, clearAllModels, loadModelsForScene, engineRef, sceneRef, cameraObjRef, setEnvironment };
 }

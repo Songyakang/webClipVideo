@@ -14,6 +14,7 @@ export interface NodeData extends Record<string, unknown> {
   models?: SceneModel[];
   cameraTracks?: CameraTrack[];
   sceneSettings?: DirectorSceneSettings;
+  environmentNodeId?: string;
 }
 
 export type FlowNode = Node<NodeData>;

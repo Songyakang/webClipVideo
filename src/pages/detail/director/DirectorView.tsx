@@ -9,7 +9,7 @@ import ExportMenu from "./ExportMenu";
 import DirectorAssetPanel from "./DirectorAssetPanel";
 import WebGPUGuard from "./WebGPUCheck";
 import { showToast } from "../../../lib/toast";
-import { FilmIcon, MoveIcon, RotateIcon, ScaleIcon, FolderIcon, CameraIcon as ScreenshotIcon, MaximizeIcon, UploadIcon, DownloadIcon, XIcon, SearchIcon, VideoIcon, BoxIcon, EyeIcon, EyeOffIcon } from "./icons";
+import { FilmIcon, MoveIcon, RotateIcon, ScaleIcon, FolderIcon, CameraIcon as ScreenshotIcon, MaximizeIcon, UploadIcon, DownloadIcon, XIcon, SearchIcon, VideoIcon, BoxIcon, EyeIcon, EyeOffIcon, GlobeIcon } from "./icons";
 
 interface Props {
   data: DirectorNodeData;
@@ -19,6 +19,11 @@ interface Props {
   onOutputToCanvas?: (videoAssetPath: string) => void;
   connectedScenes?: ConnectedScene[];
   onAddModelFromAsset?: (assetPath: string) => void;
+  /** 全景图环境（天空盒） */
+  environmentImageUrl?: string | null;
+  environmentCandidates?: { nodeId: string; label: string }[];
+  /** 当前生效的环境节点 id（已解析，用于面板高亮） */
+  environmentActiveNodeId?: string;
 }
 
 /* ---------- 左侧场景面板 ---------- */
@@ -30,6 +35,10 @@ function LeftPanel({
   onModelSelect,
   onCameraChange,
   onCameraToggle,
+  environmentCandidates,
+  environmentNodeId,
+  onEnvironmentSelect,
+  onEnvironmentRemove,
 }: {
   models: SceneModel[];
   cameraTracks: { id: string; name: string; enabled: boolean }[];
@@ -38,6 +47,10 @@ function LeftPanel({
   onModelSelect: (id: string) => void;
   onCameraChange: (id: string) => void;
   onCameraToggle: (id: string, enabled: boolean) => void;
+  environmentCandidates?: { nodeId: string; label: string }[];
+  environmentNodeId?: string;
+  onEnvironmentSelect: (nodeId: string) => void;
+  onEnvironmentRemove: () => void;
 }) {
   const [search, setSearch] = useState("");
   const filteredModels = search ? models.filter((m) => m.name.toLowerCase().includes(search.toLowerCase())) : models;
@@ -110,6 +123,48 @@ function LeftPanel({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Environment (全景图天空盒) */}
+      <div className="px-3 pb-2 shrink-0">
+        <div className="flex items-center justify-between px-3 pb-1">
+          <span className="text-xs font-medium" style={{ color: "#8b949e" }}>环境</span>
+          {environmentNodeId && environmentCandidates && environmentCandidates.length > 0 && (
+            <button
+              className="text-xs px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+              style={{ color: "#8b949e", background: "rgba(255,255,255,0.06)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#8b949e"; }}
+              onClick={onEnvironmentRemove}
+              title="移除环境"
+            >
+              移除
+            </button>
+          )}
+        </div>
+        {!environmentCandidates || environmentCandidates.length === 0 ? (
+          <div className="px-3 text-[11px] italic" style={{ color: "#484f58" }}>
+            连线全景图节点以设置环境
+          </div>
+        ) : (
+          <div className="flex flex-col gap-0.5" style={{ maxHeight: 88, overflowY: "auto" }}>
+            {environmentCandidates.map((c) => (
+              <div
+                key={c.nodeId}
+                className="group flex items-center h-7 px-1 pr-2 rounded cursor-pointer text-xs transition-colors"
+                style={{
+                  color: c.nodeId === environmentNodeId ? "#e6edf3" : "#8b949e",
+                  background: c.nodeId === environmentNodeId ? "rgba(255,255,255,0.06)" : "transparent",
+                }}
+                onClick={() => onEnvironmentSelect(c.nodeId)}
+              >
+                <span className="w-4 shrink-0" />
+                <span className="w-6 h-6 flex items-center justify-center shrink-0 rounded-lg"><GlobeIcon /></span>
+                <span className="flex-1 truncate pl-1">{c.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Minimap + reset */}
@@ -215,7 +270,7 @@ function HUDToolBtn({ label, active, onClick, children }: { label: string; activ
 }
 
 /* ---------- 主组件 ---------- */
-export default function DirectorView({ data, onClose, onUpdate, projectId, onOutputToCanvas, connectedScenes, onAddModelFromAsset }: Props) {
+export default function DirectorView({ data, onClose, onUpdate, projectId, onOutputToCanvas, connectedScenes, onAddModelFromAsset, environmentImageUrl, environmentCandidates, environmentActiveNodeId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [transformMode, setTransformMode] = useState<TransformMode>("translate");
   const [showExport, setShowExport] = useState(false);
@@ -234,6 +289,7 @@ export default function DirectorView({ data, onClose, onUpdate, projectId, onOut
     models: data.models,
     cameraTrack: activeTrack,
     sceneSettings: data.sceneSettings,
+    environmentImageUrl,
   });
 
   const { playing, currentTime, duration, play, pause, seek, getCameraAtTime } = useCameraAnimation({
@@ -363,6 +419,10 @@ export default function DirectorView({ data, onClose, onUpdate, projectId, onOut
                 cameraTracks: data.cameraTracks.map((t) => t.id === id ? { ...t, enabled } : t),
               });
             }}
+            environmentCandidates={environmentCandidates}
+            environmentNodeId={environmentActiveNodeId}
+            onEnvironmentSelect={(nodeId) => onUpdate({ ...data, environmentNodeId: nodeId })}
+            onEnvironmentRemove={() => onUpdate({ ...data, environmentNodeId: "" })}
           />
 
           {/* Viewport */}
