@@ -456,6 +456,54 @@ export default function Detail() {
     }
   }, [setNodes]);
 
+  // ReactFlow 的事件处理必须引用稳定（useCallback）—
+  // 内联箭头函数每次渲染新建引用，会破坏 ReactFlow 内部 NodeWrapper 的 memo，
+  // 导致任何状态更新都全量重渲染所有节点组件
+  const handleNodeClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
+    setSelectedNodes([node]);
+    applyNodeSelection(node.id);
+  }, [setSelectedNodes, applyNodeSelection]);
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodes([]);
+    applyNodeSelection(null);
+  }, [setSelectedNodes, applyNodeSelection]);
+
+  const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: FlowNode) => {
+    e.preventDefault();
+    setSelectedNodes([node]);
+    applyNodeSelection(node.id);
+    setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
+  }, [setSelectedNodes, applyNodeSelection, setMenu]);
+
+  const handlePaneContextMenu = useCallback((e: React.MouseEvent | MouseEvent) => {
+    console.log("pane context menu", nodesRef.current);
+    e.preventDefault();
+    setSelectedNodes([]);
+    applyNodeSelection(null);
+    setMenu({ x: e.clientX, y: e.clientY, type: "main" });
+  }, [setSelectedNodes, applyNodeSelection, setMenu]);
+
+  const handleEdgeClick = useCallback((e: React.MouseEvent, edge: Edge) => {
+    setEdgeToDelete({ id: edge.id, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleInit = useCallback((instance: ReactFlowInstance<FlowNode, Edge>) => {
+    rfInstance.current = instance;
+  }, []);
+
+  const handleSelectionChange = useCallback(({ nodes: sel }: { nodes: FlowNode[] }) => {
+    setSelectedNodes(sel);
+  }, []);
+
+  const handleNodeDragStop = useCallback(() => {
+    push(nodesRef.current, edgesRef.current);
+  }, [push]);
+
+  const handleMoveEnd = useCallback((_e: unknown, vp: { zoom: number }) => {
+    setZoom(vp.zoom);
+  }, []);
+
   if (!clip) return null;
 
   const selectedVideoNode =
@@ -529,47 +577,26 @@ export default function Detail() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={addEdge}
-        onNodeClick={(_e, node) => {
-          setSelectedNodes([node as FlowNode]);
-          applyNodeSelection(node.id);
-        }}
+        onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
-        onPaneClick={() => {
-          setSelectedNodes([]);
-          applyNodeSelection(null);
-        }}
-        onNodeContextMenu={(e, node) => {
-          e.preventDefault();
-          setSelectedNodes([node as FlowNode]);
-          applyNodeSelection(node.id);
-          setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
-        }}
-        onPaneContextMenu={(e) => {
-          console.log("pane context menu", nodes);
-          e.preventDefault();
-          setSelectedNodes([]);
-          applyNodeSelection(null);
-          setMenu({ x: e.clientX, y: e.clientY, type: "main" });
-        }}
-        onEdgeClick={(e, edge) => {
-          setEdgeToDelete({ id: edge.id, x: e.clientX, y: e.clientY });
-        }}
-        onInit={(instance) => { rfInstance.current = instance; }}
-        onSelectionChange={({ nodes: sel }) => {
-          setSelectedNodes(sel as FlowNode[]);
-        }}
+        onPaneClick={handlePaneClick}
+        onNodeContextMenu={handleNodeContextMenu}
+        onPaneContextMenu={handlePaneContextMenu}
+        onEdgeClick={handleEdgeClick}
+        onInit={handleInit}
+        onSelectionChange={handleSelectionChange}
         nodeTypes={nodeTypes}
         fitView={false}
         defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
         minZoom={0.2}
         maxZoom={3}
         zoomOnScroll={false}
-        onNodeDragStop={() => push(nodesRef.current, edgesRef.current)}
+        onNodeDragStop={handleNodeDragStop}
         panOnScroll={true}
         selectionMode={SelectionMode.Partial}
         deleteKeyCode={null}
         multiSelectionKeyCode="Shift"
-        onMoveEnd={(_e, vp) => setZoom(vp.zoom)}
+        onMoveEnd={handleMoveEnd}
         onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
         style={{ width: "100%", height: "100%" }}
