@@ -20,6 +20,7 @@ import { render, cleanup, act } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
 import { useState, useRef } from "react";
 import { ReactFlow, ReactFlowProvider, type NodeProps } from "@xyflow/react";
+import { layoutCanvas } from "../../src/pages/detail/layout";
 import { useUndoHistory } from "../../src/pages/detail/hooks/useUndoHistory";
 import type { FlowNode } from "../../src/pages/detail/nodes/types";
 import type { Edge } from "@xyflow/react";
@@ -41,8 +42,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 import { saveCanvas } from "../../src/lib/db";
 import { invoke } from "@tauri-apps/api/core";
 
-const COUNTS = [50, 100, 200, 400, 800, 1600];
-const MOUNTED_COUNTS = [100, 400, 800];
+const COUNTS = [1000, 3000, 5000, 7000, 10000];
+const MOUNTED_COUNTS = [1000, 3000, 5000, 7000, 10000];
 
 function makeNodes(n: number): FlowNode[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -165,6 +166,7 @@ const pureResults: Record<string, Record<number, number>> = {
   clickMapNew: {},
   undoPush: {},
   serialize: {},
+  dagreLayout: {},
 };
 const payloadSizes: Record<number, number> = {};
 const mountedResults: Record<string, Record<number, MountedResult>> = {
@@ -180,7 +182,7 @@ const renderResults: Record<string, Record<number, number>> = {
 describe("Detail 性能基准", () => {
   afterEach(() => cleanup());
 
-  it("纯 JS 路径 + 挂载更新 + 渲染", { timeout: 300000 }, () => {
+  it("纯 JS 路径 + 挂载更新 + 渲染", { timeout: 600000 }, () => {
     // ─── 纯 JS 指标 ───────────────────────────────────────────
     for (const n of COUNTS) {
       const nodes = makeNodes(n);
@@ -228,6 +230,15 @@ describe("Detail 性能基准", () => {
         void saveCanvas("bench-clip", nodes, edges);
       });
       payloadSizes[n] = payloadSize;
+
+      // 布局（layoutCanvas = worker 内的实际算法：小图 dagre / 大图迭代分层）
+      const layoutResult = layoutCanvas(
+        nodes.map((nd) => ({ id: nd.id, width: 680, height: 400 })),
+        edges.map((ed) => ({ source: ed.source, target: ed.target })),
+      );
+      pureResults.dagreLayout[n] = layoutResult.duration;
+      // eslint-disable-next-line no-console
+      console.log(`  [布局(worker内 ${layoutResult.algorithm})] ${layoutResult.duration.toFixed(0)} ms`);
     }
 
     // ─── 挂载状态：点击更新 + 渲染 ─────────────────────────────
@@ -303,7 +314,7 @@ describe("Detail 性能基准", () => {
     }
 
     // 基本断言
-    expect(payloadSizes[1600]).toBeGreaterThan(payloadSizes[50]);
+    expect(payloadSizes[10000]).toBeGreaterThan(payloadSizes[1000]);
     // 优化后：已选中节点再次点击应零重渲染（引用保持 + React bail-out）
     const n = makeNodes(100);
     const e = makeEdges(100);

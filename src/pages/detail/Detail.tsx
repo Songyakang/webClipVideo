@@ -12,7 +12,6 @@ import {
   SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import dagre from "dagre";
 import { useClipLoader } from "./hooks/useClipLoader";
 import { useCanvasPersistence } from "./hooks/useCanvasPersistence";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -42,6 +41,8 @@ import TitleEditor from "./TitleEditor";
 import AssetLibrary from "./AssetLibrary";
 import CanvasPreview from "./CanvasPreview";
 import { getAssetSrc } from "../../lib/assets";
+import { showToast } from "../../lib/toast";
+import type { LayoutRequest, LayoutResponse } from "./layoutWorker";
 
 
 const nodeTypes: NodeTypes = {
@@ -132,42 +133,62 @@ export default function Detail() {
     }]);
   }, [setNodes]);
 
+  // 布局 Web Worker：dagre 计算移出主线程，大图布局不卡 UI
+  const layoutWorkerRef = useRef<Worker | null>(null);
+  const isOrganizingRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      layoutWorkerRef.current?.terminate();
+      layoutWorkerRef.current = null;
+    };
+  }, []);
+
   const organizeCanvas = useCallback(() => {
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
-    if (currentNodes.length === 0) return;
+    if (currentNodes.length === 0 || isOrganizingRef.current) return;
 
     push(currentNodes, currentEdges);
 
-    const g = new dagre.graphlib.Graph();
-    g.setDefaultEdgeLabel(() => ({}));
-    g.setGraph({ rankdir: "LR", nodesep: 80, ranksep: 160 });
+    if (!layoutWorkerRef.current) {
+      layoutWorkerRef.current = new Worker(new URL("./layoutWorker.ts", import.meta.url), {
+        type: "module",
+      });
+      layoutWorkerRef.current.onmessage = (e: MessageEvent<LayoutResponse>) => {
+        const msg = e.data;
+        if (msg.type !== "layout-done") return;
+        isOrganizingRef.current = false;
 
-    currentNodes.forEach((node) => {
-      g.setNode(node.id, {
+        setNodes((prev) =>
+          prev.map((node) => {
+            const pos = msg.positions[node.id];
+            if (!pos) return node;
+            return { ...node, position: { x: pos.x, y: pos.y } };
+          }),
+        );
+
+        const algo = msg.algorithm === "dagre" ? "dagre" : "快速分层";
+        showToast(`布局完成（${algo} ${(msg.duration / 1000).toFixed(1)}s）`, "success");
+
+        setTimeout(() => {
+          rfInstance.current?.fitView({ duration: 300, padding: 0.2 });
+        }, 50);
+      };
+    }
+
+    isOrganizingRef.current = true;
+    showToast("布局计算中...", "info");
+
+    layoutWorkerRef.current.postMessage({
+      type: "layout",
+      nodes: currentNodes.map((node) => ({
+        id: node.id,
         width: node.measured?.width ?? node.data.w ?? 200,
         height: node.measured?.height ?? node.data.h ?? 100,
-      });
-    });
-
-    currentEdges.forEach((edge) => {
-      g.setEdge(edge.source, edge.target);
-    });
-
-    dagre.layout(g);
-    setNodes((prev) =>
-      prev.map((node) => {
-        const pos = g.node(node.id);
-        if (!pos) return node;
-        const w = node.measured?.width ?? node.data.w ?? 200;
-        const h = node.measured?.height ?? node.data.h ?? 100;
-        return { ...node, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
-      })
-    );
-
-    setTimeout(() => {
-      rfInstance.current?.fitView({ duration: 300, padding: 0.2 });
-    }, 50);
+      })),
+      edges: currentEdges.map((edge) => ({ source: edge.source, target: edge.target })),
+    } satisfies LayoutRequest);
   }, [setNodes, push]);
 
   const handleOutputToCanvas = useCallback((videoAssetPath: string) => {
