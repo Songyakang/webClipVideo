@@ -413,6 +413,21 @@ export default function Detail() {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo, setNodes, setEdges]);
 
+  // 只更新 selected 状态变化的节点，未变化的保持对象引用 —
+  // 节点组件均为 memo，引用不变即跳过 re-render（原来每次点击全量重渲染 O(N) 组件）
+  const applyNodeSelection = useCallback((targetId: string | null) => {
+    setNodes((nds) => {
+      let changed = false;
+      const next = nds.map((n) => {
+        const should = n.id === targetId;
+        if (!!n.selected === should) return n;
+        changed = true;
+        return { ...n, selected: should };
+      });
+      return changed ? next : nds;
+    });
+  }, [setNodes]);
+
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
       setDirectorNodeId(node.id);
@@ -423,15 +438,23 @@ export default function Detail() {
       }
     } else if (node.type === "text") {
       setSelectedNodes([]);
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === node.id
-            ? { ...n, selected: false, data: { ...n.data, isEditing: true } }
-            : { ...n, selected: false },
-        ),
-      );
+      setNodes((nds) => {
+        let changed = false;
+        const next = nds.map((n) => {
+          if (n.id === node.id) {
+            changed = true;
+            return { ...n, selected: false, data: { ...n.data, isEditing: true } };
+          }
+          if (n.selected) {
+            changed = true;
+            return { ...n, selected: false };
+          }
+          return n;
+        });
+        return changed ? next : nds;
+      });
     }
-  }, []);
+  }, [setNodes]);
 
   if (!clip) return null;
 
@@ -508,32 +531,24 @@ export default function Detail() {
         onConnect={addEdge}
         onNodeClick={(_e, node) => {
           setSelectedNodes([node as FlowNode]);
-          setNodes((nds) =>
-            nds.map((n) => ({ ...n, selected: n.id === node.id })),
-          );
+          applyNodeSelection(node.id);
         }}
         onNodeDoubleClick={handleNodeDoubleClick}
         onPaneClick={() => {
           setSelectedNodes([]);
-          setNodes((nds) =>
-            nds.map((n) => ({ ...n, selected: false })),
-          );
+          applyNodeSelection(null);
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();
           setSelectedNodes([node as FlowNode]);
-          setNodes((nds) =>
-            nds.map((n) => ({ ...n, selected: n.id === node.id })),
-          );
+          applyNodeSelection(node.id);
           setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
         }}
         onPaneContextMenu={(e) => {
           console.log("pane context menu", nodes);
           e.preventDefault();
           setSelectedNodes([]);
-          setNodes((nds) =>
-            nds.map((n) => ({ ...n, selected: false })),
-          );
+          applyNodeSelection(null);
           setMenu({ x: e.clientX, y: e.clientY, type: "main" });
         }}
         onEdgeClick={(e, edge) => {
@@ -555,6 +570,7 @@ export default function Detail() {
         deleteKeyCode={null}
         multiSelectionKeyCode="Shift"
         onMoveEnd={(_e, vp) => setZoom(vp.zoom)}
+        onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
         style={{ width: "100%", height: "100%" }}
       >
