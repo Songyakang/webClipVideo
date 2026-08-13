@@ -23,31 +23,31 @@ pub struct PositionInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasNodeInput {
-    id: String,
+    pub id: String,
     #[serde(rename = "type", default)]
-    node_type: Option<String>,
+    pub node_type: Option<String>,
     #[serde(default)]
-    position: Option<PositionInput>,
+    pub position: Option<PositionInput>,
     #[serde(default)]
-    data: Option<Value>,
+    pub data: Option<Value>,
     #[serde(default)]
-    width: Option<f64>,
+    pub width: Option<f64>,
     #[serde(default)]
-    height: Option<f64>,
+    pub height: Option<f64>,
     #[serde(default)]
-    selected: Option<bool>,
+    pub selected: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasEdgeInput {
-    id: String,
-    source: String,
-    target: String,
+    pub id: String,
+    pub source: String,
+    pub target: String,
     #[serde(default)]
-    source_handle: Option<String>,
+    pub source_handle: Option<String>,
     #[serde(default)]
-    target_handle: Option<String>,
+    pub target_handle: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -296,6 +296,157 @@ pub fn db_clear_canvas(db: State<Database>, clip_id: String) -> Result<(), Strin
     )
     .map_err(|e| format!("delete subtitles: {}", e))?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// 增量保存（性能优化：只写变化的节点/边，替代全量 DELETE+INSERT）
+// ---------------------------------------------------------------------------
+
+/// INSERT OR REPLACE 批量 upsert 节点（事务内）
+pub fn upsert_nodes(
+    conn: &mut rusqlite::Connection,
+    clip_id: &str,
+    nodes: &[CanvasNodeInput],
+) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| format!("tx: {}", e))?;
+    for n in nodes {
+        let pos_x = n.position.as_ref().map_or(0.0, |p| p.x);
+        let pos_y = n.position.as_ref().map_or(0.0, |p| p.y);
+        let data_json = n
+            .data
+            .as_ref()
+            .map_or_else(|| "{}".to_string(), |v| v.to_string());
+        tx.execute(
+            "INSERT OR REPLACE INTO nodes (id, type, pos_x, pos_y, data, width, height, selected, clip_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            rusqlite::params![
+                n.id,
+                n.node_type.as_deref().unwrap_or("text"),
+                pos_x,
+                pos_y,
+                data_json,
+                n.width,
+                n.height,
+                n.selected.unwrap_or(false),
+                clip_id,
+            ],
+        )
+        .map_err(|e| format!("upsert node {}: {}", n.id, e))?;
+    }
+    tx.commit().map_err(|e| format!("commit: {}", e))?;
+    Ok(())
+}
+
+/// 按 id 批量删除节点（分块，规避 SQLite 参数数量上限）
+pub fn delete_nodes(
+    conn: &rusqlite::Connection,
+    clip_id: &str,
+    node_ids: &[String],
+) -> Result<(), String> {
+    const CHUNK: usize = 500;
+    for chunk in node_ids.chunks(CHUNK) {
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "DELETE FROM nodes WHERE clip_id = ?1 AND id IN ({})",
+            placeholders
+        );
+        let mut params: Vec<&dyn rusqlite::types::ToSql> = vec![&clip_id];
+        for id in chunk {
+            params.push(id);
+        }
+        conn.execute(&sql, params.as_slice())
+            .map_err(|e| format!("delete nodes: {}", e))?;
+    }
+    Ok(())
+}
+
+/// INSERT OR REPLACE 批量 upsert 边（事务内）
+pub fn upsert_edges(
+    conn: &mut rusqlite::Connection,
+    clip_id: &str,
+    edges: &[CanvasEdgeInput],
+) -> Result<(), String> {
+    let tx = conn.transaction().map_err(|e| format!("tx: {}", e))?;
+    for e in edges {
+        tx.execute(
+            "INSERT OR REPLACE INTO edges (id, source, target, source_handle, target_handle, clip_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                e.id,
+                e.source,
+                e.target,
+                e.source_handle.as_deref().unwrap_or(""),
+                e.target_handle.as_deref().unwrap_or(""),
+                clip_id,
+            ],
+        )
+        .map_err(|e2| format!("upsert edge {}: {}", e.id, e2))?;
+    }
+    tx.commit().map_err(|e| format!("commit: {}", e))?;
+    Ok(())
+}
+
+/// 按 id 批量删除边（分块）
+pub fn delete_edges(
+    conn: &rusqlite::Connection,
+    clip_id: &str,
+    edge_ids: &[String],
+) -> Result<(), String> {
+    const CHUNK: usize = 500;
+    for chunk in edge_ids.chunks(CHUNK) {
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "DELETE FROM edges WHERE clip_id = ?1 AND id IN ({})",
+            placeholders
+        );
+        let mut params: Vec<&dyn rusqlite::types::ToSql> = vec![&clip_id];
+        for id in chunk {
+            params.push(id);
+        }
+        conn.execute(&sql, params.as_slice())
+            .map_err(|e| format!("delete edges: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn db_upsert_canvas_nodes(
+    db: State<Database>,
+    clip_id: String,
+    nodes: Vec<CanvasNodeInput>,
+) -> Result<(), String> {
+    let mut conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    upsert_nodes(&mut conn, &clip_id, &nodes)
+}
+
+#[tauri::command]
+pub fn db_delete_canvas_nodes(
+    db: State<Database>,
+    clip_id: String,
+    node_ids: Vec<String>,
+) -> Result<(), String> {
+    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    delete_nodes(&conn, &clip_id, &node_ids)
+}
+
+#[tauri::command]
+pub fn db_upsert_canvas_edges(
+    db: State<Database>,
+    clip_id: String,
+    edges: Vec<CanvasEdgeInput>,
+) -> Result<(), String> {
+    let mut conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    upsert_edges(&mut conn, &clip_id, &edges)
+}
+
+#[tauri::command]
+pub fn db_delete_canvas_edges(
+    db: State<Database>,
+    clip_id: String,
+    edge_ids: Vec<String>,
+) -> Result<(), String> {
+    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    delete_edges(&conn, &clip_id, &edge_ids)
 }
 
 // ---------------------------------------------------------------------------

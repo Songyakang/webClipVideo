@@ -46,3 +46,7 @@ ndarray = "0.17"
 # SQLite (replaces browser IndexedDB)
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+
+[[test]]
+name = "canvas_incremental"
+path = "../test/backend/canvas_incremental.rs"

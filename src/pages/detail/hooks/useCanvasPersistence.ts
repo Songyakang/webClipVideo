@@ -1,6 +1,6 @@
-import { useEffect, type MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import type { Node, Edge } from "@xyflow/react";
-import { saveCanvas, loadCanvas } from "../../../lib/db";
+import { saveCanvasIncremental, createCanvasDiffState, loadCanvas } from "../../../lib/db";
 import { getAssetSrc } from "../../../lib/assets";
 import type { FlowNode } from "../nodes/types";
 
@@ -14,9 +14,13 @@ export function useCanvasPersistence(
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
 ) {
+  // 增量保存的 diff 状态：记录每个 id 上次保存的序列化 hash
+  const diffStateRef = useRef(createCanvasDiffState());
+
   useEffect(() => {
     // Reset on every clipId change to avoid stale state from previous project
     loadedRef.current = false;
+    diffStateRef.current = createCanvasDiffState();
     let cancelled = false;
 
     loadCanvas(clipId).then(async (data) => {
@@ -68,7 +72,10 @@ export function useCanvasPersistence(
   useEffect(() => {
     if (!loadedRef.current) return;
     const timer = setTimeout(() => {
-      saveCanvas(clipId, nodes, edges);
+      // 增量保存：只发送自上次保存以来变化的节点/边
+      saveCanvasIncremental(clipId, nodes, edges, diffStateRef.current).catch((err) => {
+        console.error("[persistence] incremental save failed:", err);
+      });
     }, 500);
     return () => clearTimeout(timer);
   }, [clipId, nodes, edges]);

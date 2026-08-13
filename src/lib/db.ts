@@ -22,6 +22,34 @@ export function closeDB(): void {
 // Canvas (per-clip isolation via clip_id column)
 // ---------------------------------------------------------------------------
 
+/** 剥离 DOM 引用（videoEl）和回调函数，得到可序列化的节点 data */
+export function cleanNodeData(n: Node): Record<string, unknown> {
+  const { videoEl, onFileUpload, onUploadComplete, ...cleanData } = (n.data || {}) as Record<string, unknown>;
+  return cleanData;
+}
+
+export function nodeToInput(n: Node) {
+  return {
+    id: n.id,
+    type: n.type,
+    position: n.position,
+    data: cleanNodeData(n),
+    width: n.width ?? undefined,
+    height: n.height ?? undefined,
+    selected: n.selected ?? false,
+  };
+}
+
+function edgeToInput(e: Edge) {
+  return {
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    sourceHandle: e.sourceHandle ?? "",
+    targetHandle: e.targetHandle ?? "",
+  };
+}
+
 export async function saveCanvas(
   clipId: string,
   nodes: Node[],
@@ -29,33 +57,88 @@ export async function saveCanvas(
 ): Promise<void> {
   if (!clipId) return;
 
-  // Strip DOM refs (videoEl) and map to Rust input shape
-  const cleanNodes = nodes.map((n) => {
-    const { videoEl, onFileUpload, onUploadComplete, ...cleanData } = (n.data || {}) as Record<string, unknown>;
-    return {
-      id: n.id,
-      type: n.type,
-      position: n.position,
-      data: cleanData,
-      width: n.width ?? undefined,
-      height: n.height ?? undefined,
-      selected: n.selected ?? false,
-    };
-  });
-
-  const cleanEdges = edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle ?? "",
-    targetHandle: e.targetHandle ?? "",
-  }));
+  const cleanNodes = nodes.map(nodeToInput);
+  const cleanEdges = edges.map(edgeToInput);
 
   await invoke("db_save_canvas", {
     clipId,
     nodes: cleanNodes,
     edges: cleanEdges,
   });
+}
+
+// ---------------------------------------------------------------------------
+// 增量保存（性能优化）
+//
+// 只把自上次保存以来发生变化的节点/边发给后端（upsert），
+// 并把已删除的 id 告知后端（delete）。
+// state 保存每个 id 的上次序列化 hash，由调用方（useCanvasPersistence）
+// 持有，项目切换时需重建。
+// ---------------------------------------------------------------------------
+
+export interface CanvasDiffState {
+  nodeHashes: Map<string, string>;
+  edgeHashes: Map<string, string>;
+}
+
+export function createCanvasDiffState(): CanvasDiffState {
+  return { nodeHashes: new Map(), edgeHashes: new Map() };
+}
+
+export async function saveCanvasIncremental(
+  clipId: string,
+  nodes: Node[],
+  edges: Edge[],
+  state: CanvasDiffState,
+): Promise<void> {
+  if (!clipId) return;
+
+  // 计算节点 diff
+  const upsertNodes: ReturnType<typeof nodeToInput>[] = [];
+  const deleteNodeIds: string[] = [];
+  const nextNodeHashes = new Map<string, string>();
+  for (const n of nodes) {
+    const input = nodeToInput(n);
+    const hash = JSON.stringify(input);
+    nextNodeHashes.set(n.id, hash);
+    if (state.nodeHashes.get(n.id) !== hash) upsertNodes.push(input);
+  }
+  for (const id of state.nodeHashes.keys()) {
+    if (!nextNodeHashes.has(id)) deleteNodeIds.push(id);
+  }
+
+  // 计算边 diff
+  const upsertEdges: ReturnType<typeof edgeToInput>[] = [];
+  const deleteEdgeIds: string[] = [];
+  const nextEdgeHashes = new Map<string, string>();
+  for (const e of edges) {
+    const input = edgeToInput(e);
+    const hash = JSON.stringify(input);
+    nextEdgeHashes.set(e.id, hash);
+    if (state.edgeHashes.get(e.id) !== hash) upsertEdges.push(input);
+  }
+  for (const id of state.edgeHashes.keys()) {
+    if (!nextEdgeHashes.has(id)) deleteEdgeIds.push(id);
+  }
+
+  // 只发非空批次（幂等：INSERT OR REPLACE / DELETE，重复执行无害）
+  const calls: Promise<unknown>[] = [];
+  if (upsertNodes.length > 0) {
+    calls.push(invoke("db_upsert_canvas_nodes", { clipId, nodes: upsertNodes }));
+  }
+  if (deleteNodeIds.length > 0) {
+    calls.push(invoke("db_delete_canvas_nodes", { clipId, nodeIds: deleteNodeIds }));
+  }
+  if (upsertEdges.length > 0) {
+    calls.push(invoke("db_upsert_canvas_edges", { clipId, edges: upsertEdges }));
+  }
+  if (deleteEdgeIds.length > 0) {
+    calls.push(invoke("db_delete_canvas_edges", { clipId, edgeIds: deleteEdgeIds }));
+  }
+  await Promise.all(calls);
+
+  state.nodeHashes = nextNodeHashes;
+  state.edgeHashes = nextEdgeHashes;
 }
 
 export async function loadCanvas(clipId: string): Promise<{
