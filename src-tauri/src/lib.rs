@@ -1,9 +1,10 @@
-mod commands;
-mod db;
+pub mod commands;
+pub mod db;
+pub mod asr;
 mod inpaint;
 mod voice;
 
-use commands::asr::generate_subtitles;
+use commands::asr::{generate_subtitles, check_asr_models, download_asr_models};
 use commands::export::{export_with_subtitles, burn_with_synthetic_audio};
 use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inpaint_frame};
 use commands::stepfun::{generate_image, edit_image};
@@ -32,6 +33,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             generate_subtitles,
+            check_asr_models,
+            download_asr_models,
             export_with_subtitles,
             burn_with_synthetic_audio,
             extract_voice_profile,

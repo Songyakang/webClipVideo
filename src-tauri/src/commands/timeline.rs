@@ -4,7 +4,7 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 /// Filter configuration for a single clip
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipFilterRust {
     pub brightness: Option<f64>,
@@ -268,4 +268,206 @@ pub async fn render_timeline(
     }
 
     Ok(output_path.to_string_lossy().to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod clip_filter {
+        use super::*;
+
+        #[test]
+        fn empty_filter_is_empty() {
+            let f = ClipFilterRust {
+                brightness: None,
+                contrast: None,
+                saturation: None,
+                hue: None,
+                blur: None,
+                sharpen: None,
+                temperature: None,
+                vignette: None,
+            };
+            assert!(f.is_empty());
+            assert!(f.to_ffmpeg_filter().is_none());
+        }
+
+        #[test]
+        fn all_zero_is_empty() {
+            let f = ClipFilterRust {
+                brightness: Some(0.0),
+                contrast: Some(0.0),
+                saturation: Some(0.0),
+                hue: Some(0.0),
+                blur: Some(0.0),
+                sharpen: Some(0.0),
+                temperature: Some(0.0),
+                vignette: Some(0.0),
+            };
+            // is_empty checks is_none(), not == 0
+            assert!(!f.is_empty());
+            // to_ffmpeg_filter skips 0.0 values
+            assert!(f.to_ffmpeg_filter().is_none());
+        }
+
+        #[test]
+        fn single_brightness_generates_eq() {
+            let f = ClipFilterRust {
+                brightness: Some(0.2),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert!(result.contains("eq="));
+            assert!(result.contains("brightness=0.2"));
+        }
+
+        #[test]
+        fn single_contrast_maps_correctly() {
+            let f = ClipFilterRust {
+                contrast: Some(0.3),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            // contrast -1..1 maps to 0..2: 0.3 -> 1.3
+            assert!(result.contains("contrast=1.3"));
+        }
+
+        #[test]
+        fn negative_contrast_maps_correctly() {
+            let f = ClipFilterRust {
+                contrast: Some(-0.5),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            // -0.5 -> 0.5
+            assert!(result.contains("contrast=0.5"));
+        }
+
+        #[test]
+        fn combined_eq_filters_are_joined_with_colons() {
+            let f = ClipFilterRust {
+                brightness: Some(0.1),
+                contrast: Some(0.2),
+                saturation: Some(-0.3),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            // All three should be in a single eq=... chain
+            assert!(result.starts_with("eq="));
+            assert!(result.contains("brightness=0.1"));
+            assert!(result.contains("contrast=1.2"));
+            assert!(result.contains("saturation=0.7"));
+        }
+
+        #[test]
+        fn hue_generates_hue_filter() {
+            let f = ClipFilterRust {
+                hue: Some(90.0),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert_eq!(result, "hue=h=90");
+        }
+
+        #[test]
+        fn blur_generates_gblur() {
+            let f = ClipFilterRust {
+                blur: Some(5.0),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert_eq!(result, "gblur=sigma=5");
+        }
+
+        #[test]
+        fn blur_zero_is_skipped() {
+            let f = ClipFilterRust {
+                blur: Some(0.0),
+                ..Default::default()
+            };
+            assert!(f.to_ffmpeg_filter().is_none());
+        }
+
+        #[test]
+        fn sharpen_generates_unsharp() {
+            let f = ClipFilterRust {
+                sharpen: Some(0.8),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert_eq!(result, "unsharp=5:5:0.8");
+        }
+
+        #[test]
+        fn warm_temperature_is_red_shift() {
+            let f = ClipFilterRust {
+                temperature: Some(0.5),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert!(result.contains("colorbalance"));
+            assert!(result.contains("rh=0.15"));
+            assert!(result.contains("bh=0"));
+        }
+
+        #[test]
+        fn cool_temperature_is_blue_shift() {
+            let f = ClipFilterRust {
+                temperature: Some(-0.5),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert!(result.contains("rh=0"));
+            // -(-0.5) * 0.3 = 0.15
+            assert!(result.contains("bh=0.15"));
+        }
+
+        #[test]
+        fn vignette_generates_vignette_filter() {
+            let f = ClipFilterRust {
+                vignette: Some(0.5),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            assert!(result.starts_with("vignette=PI*"));
+        }
+
+        #[test]
+        fn multiple_filters_are_comma_separated() {
+            let f = ClipFilterRust {
+                brightness: Some(0.1),
+                hue: Some(45.0),
+                blur: Some(3.0),
+                sharpen: Some(0.5),
+                ..Default::default()
+            };
+            let result = f.to_ffmpeg_filter().unwrap();
+            let parts: Vec<&str> = result.split(',').collect();
+            assert!(parts.len() >= 4);
+        }
+
+        #[test]
+        fn is_empty_true_for_none_fields() {
+            let f = ClipFilterRust {
+                brightness: None,
+                contrast: Some(0.0),
+                saturation: None,
+                hue: None,
+                blur: None,
+                sharpen: Some(0.0),
+                temperature: None,
+                vignette: None,
+            };
+            // Some(0.0) is not None, so is_empty is false
+            assert!(!f.is_empty());
+            // But to_ffmpeg_filter skips 0.0, so it's empty
+            assert!(f.to_ffmpeg_filter().is_none());
+        }
+    }
+
 }

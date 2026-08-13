@@ -46,7 +46,25 @@ ndarray = "0.17"
 # SQLite (replaces browser IndexedDB)
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# FFT for mel spectrogram (whisper preprocessing, replaces whisper.cpp CLI)
+rustfft = "6"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[test]]
+name = "db_crud"
+path = "../test/backend/db_crud.rs"
+
+[[test]]
+name = "filter_export"
+path = "../test/backend/filter_export.rs"
+
+[[test]]
+name = "asr_pipeline"
+path = "../test/backend/asr_pipeline.rs"
 
 [[test]]
 name = "canvas_incremental"
 path = "../test/backend/canvas_incremental.rs"
+
