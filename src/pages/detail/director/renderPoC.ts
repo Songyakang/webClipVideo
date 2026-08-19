@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import { getAssetDir, getAssetSrc, isTauri } from "../../../lib/assets";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { getAssetDir, isTauri } from "../../../lib/assets";
 
 export interface PocResult {
   ok: boolean;
@@ -250,27 +251,30 @@ export async function runGlbRenderPoC(
 ): Promise<Poc3Result> {
   const t0 = performance.now();
   try {
-    const baseDir = await getAssetDir();
-    if (!baseDir) return { ok: false, error: "非 Tauri 环境" };
+    // 模型目录：~/Documents/editor-tarui/{projectId}/models（Rust tripo.rs ensure_models_dir
+    // 写在这里，与前端 assets 目录平行——注意不要用 resolveAssetPath，它会加 assets 前缀）
+    const { documentDir, join } = await import("@tauri-apps/api/path");
+    const docDir = await documentDir();
+    const modelsDir = await join(docDir, "editor-tarui", projectId, "models");
 
     // 扫描 models 目录找第一个 .glb
     const { readDir } = await import("@tauri-apps/plugin-fs");
     let entries;
     try {
-      entries = await readDir(`${baseDir}/${projectId}/models`);
+      entries = await readDir(modelsDir);
     } catch {
-      return { ok: false, error: `未找到 models 目录（${projectId}/models）——先右键图片节点 → 转为3D模型` };
+      return { ok: false, error: `未找到 models 目录（editor-tarui/${projectId}/models）——先右键图片节点 → 转为3D模型` };
     }
     const glb = entries.find((e) => e.name?.toLowerCase().endsWith(".glb"));
     if (!glb) return { ok: false, error: "models 目录中未找到 .glb 文件" };
 
-    // 加载（Draco 离线解码）
+    // 加载（Draco 离线解码）；assetProtocol scope 覆盖 $DOCUMENT/editor-tarui/**，
+    // convertFileSrc 直接指向 models 目录
     const loader = new GLTFLoader();
     const draco = new DRACOLoader();
     draco.setDecoderPath("draco/");
     loader.setDRACOLoader(draco);
-    const url = await getAssetSrc(`${projectId}/models/${glb.name}`);
-    if (!url) return { ok: false, error: "getAssetSrc 返回空 URL（检查 assetProtocol scope）" };
+    const url = convertFileSrc(`${modelsDir}/${glb.name}`);
     const gltf = await loader.loadAsync(url);
 
     // 白色 PBR 材质替换（白模）
@@ -318,9 +322,10 @@ export async function runGlbRenderPoC(
     const blob = await (await fetch(dataUrl)).blob();
 
     let pngPath = "";
-    if (isTauri() && baseDir) {
+    const assetsBase = await getAssetDir();
+    if (isTauri() && assetsBase) {
       const { mkdir, writeFile } = await import("@tauri-apps/plugin-fs");
-      const dir = `${baseDir}/${projectId}/render/poc`;
+      const dir = `${assetsBase}/${projectId}/render/poc`;
       await mkdir(dir, { recursive: true });
       await writeFile(`${dir}/frame-glb-0001.png`, new Uint8Array(await blob.arrayBuffer()));
       pngPath = `${projectId}/render/poc/frame-glb-0001.png`;
