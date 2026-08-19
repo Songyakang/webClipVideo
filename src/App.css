@@ -275,13 +275,12 @@ textarea {
   border: 1px solid #30363d;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
+  overflow: visible; /* 连接点(plus图标)横跨节点边缘, 溢出可见才能完整显示 */
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .flow-node.selected {
   border-color: #58a6ff;
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
-  overflow: visible;
 }
 .node-toolbox-wrapper {
   position: absolute;
@@ -305,16 +304,38 @@ textarea {
   border: 1px solid #58a6ff;
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
 }
+/* 连接点: plus 图标, 纯 CSS 伪元素绘制(横竖两条) */
 .flow-handle {
-  width: 14px !important;
-  height: 14px !important;
+  width: 20px !important;
+  height: 20px !important;
   background: #484f58 !important;
   border: 2px solid #30363d !important;
   border-radius: 50% !important;
+  cursor: crosshair;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 .flow-handle:hover {
   background: #58a6ff !important;
   border-color: #58a6ff !important;
+}
+.flow-handle::before,
+.flow-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: 1px;
+  pointer-events: none;
+}
+.flow-handle::before {
+  width: 60%;
+  height: 2px;
+}
+.flow-handle::after {
+  width: 2px;
+  height: 60%;
 }
 .node-content {
   padding: 20px 28px;

@@ -11,7 +11,7 @@ function DirectorNode({ data, selected }: NodeProps) {
 
   return (
     <div className={`director-node${selected ? " selected" : ""}`}>
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Left} className="flow-handle" />
       <div className="director-node-header">
         <span className="director-icon"><FilmIcon /></span>
         <span className="director-label">{d.label || "导演台"}</span>
@@ -25,7 +25,7 @@ function DirectorNode({ data, selected }: NodeProps) {
           <div className="director-empty-hint">右键图片节点 → 转为3D模型</div>
         )}
       </div>
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={Position.Right} className="flow-handle" />
     </div>
   );
 }

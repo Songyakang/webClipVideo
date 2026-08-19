@@ -86,6 +86,7 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
             fontSize: 14,
             lineHeight: 1.6,
             padding: "20px 28px",
+            borderRadius: 12,
             fontFamily: "inherit",
             boxSizing: "border-box",
           }}
