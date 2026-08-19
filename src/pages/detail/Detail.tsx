@@ -45,6 +45,7 @@ import { showToast } from "../../lib/toast";
 import type { LayoutRequest, LayoutResponse } from "./layoutWorker";
 import { buildCopyPayload, buildPastePayload, type ClipboardPayload } from "./hooks/clipboard";
 import { MouseModeContext, type MouseMode } from "./hooks/MouseModeContext";
+import RenderPoCButton from "./director/RenderPoCButton";
 
 
 const nodeTypes: NodeTypes = {
@@ -701,6 +702,9 @@ export default function Detail() {
         onToggleMouseMode={() => setMouseMode((m) => (m === "hand" ? "select" : "hand"))}
         className="custom-controls absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-black rounded-lg p-0.5 select-none"
       />
+
+      {/* 临时 PoC 入口（方案 §10 验收点 1）— 验证完成后移除 */}
+      <RenderPoCButton projectId={id!} />
 
       <button className="btn-back fixed top-4 left-4 z-10 cursor-pointer px-4 py-2 rounded-lg select-none text-sm" onClick={() => navigate("/")}>&larr; 返回</button>
       {showAssetLibrary && (
