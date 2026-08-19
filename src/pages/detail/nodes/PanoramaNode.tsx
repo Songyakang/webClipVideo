@@ -2,6 +2,7 @@ import { memo, useRef } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Toolbox } from "../toolbox";
 import { saveAsset, getAssetSrc } from "../../../lib/assets";
+import { useMouseMode } from "../hooks/MouseModeContext";
 
 interface PanoramaNodeData {
   type: string;
@@ -16,6 +17,7 @@ interface PanoramaNodeData {
 
 export default memo(function PanoramaNode({ id, data, selected, dragging }: NodeProps) {
   const d = data as unknown as PanoramaNodeData;
+  const mouseMode = useMouseMode(); // 箭头（框选）模式下不显示 toolbox
   const w = d.w || 680;
   const h = d.h || 400;
   const hasImg = !!d.fileUrl;
@@ -90,7 +92,7 @@ export default memo(function PanoramaNode({ id, data, selected, dragging }: Node
 
       <Handle type="source" position={Position.Right} className="flow-handle" />
 
-      {selected && !dragging && (
+      {mouseMode === "hand" && selected && !dragging && (
         <div className="node-toolbox-wrapper">
           <Toolbox nodeId={id} nodeType="image" />
         </div>

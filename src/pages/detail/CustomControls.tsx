@@ -1,6 +1,8 @@
 import type { ReactFlowInstance } from "@xyflow/react";
 import type { FlowNode } from "./nodes/types";
 import type { Edge } from "@xyflow/react";
+import MouseModeToggle from "./MouseModeToggle";
+import type { MouseMode } from "./hooks/MouseModeContext";
 
 interface Props {
   rfInstance: React.RefObject<ReactFlowInstance<FlowNode, Edge> | null>;
@@ -10,6 +12,8 @@ interface Props {
   onToggleAssetLibrary?: () => void;
   onPreview?: () => void;
   onOrganize?: () => void;
+  mouseMode?: MouseMode;
+  onToggleMouseMode?: () => void;
 }
 
 const AssetLibraryIcon = () => (
@@ -39,13 +43,16 @@ const OrganizeIcon = () => (
   </svg>
 );
 
-export default function CustomControls({ rfInstance, zoom, className, assetLibraryOpen, onToggleAssetLibrary, onPreview, onOrganize }: Props) {
+export default function CustomControls({ rfInstance, zoom, className, assetLibraryOpen, onToggleAssetLibrary, onPreview, onOrganize, mouseMode, onToggleMouseMode }: Props) {
   const zoomIn = () => rfInstance.current?.zoomIn({ duration: 200 });
   const zoomOut = () => rfInstance.current?.zoomOut({ duration: 200 });
   const fitView = () => rfInstance.current?.fitView({ duration: 200, padding: 0.2 });
 
   return (
     <div className={className}>
+      {mouseMode && onToggleMouseMode && (
+        <MouseModeToggle mode={mouseMode} onToggle={onToggleMouseMode} />
+      )}
       {onToggleAssetLibrary && (
         <button
           onClick={onToggleAssetLibrary}

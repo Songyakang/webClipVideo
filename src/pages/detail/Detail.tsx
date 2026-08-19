@@ -72,6 +72,7 @@ export default function Detail() {
   const [timelineNodeId, setTimelineNodeId] = useState<string | null>(null);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [zoom, setZoom] = useState(0.5);
+  const [mouseMode, setMouseMode] = useState<MouseMode>("hand"); // 抓手=平移 / 箭头=框选
   const [showAssetLibrary, setShowAssetLibrary] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -587,13 +588,20 @@ export default function Detail() {
   return (
     <GenerateContext.Provider value={{ generateImage, generatingNodeId, reversePrompt, reversingNodeId }}>
     <div
-      className="fixed inset-0 overflow-hidden cursor-grab active:cursor-grabbing"
+      className={`fixed inset-0 overflow-hidden${mouseMode === "hand" ? " cursor-grab active:cursor-grabbing" : " mouse-mode-select"}`}
       style={{ backgroundColor: "#0d1117" }}
       ref={containerRef}
     >
       <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleFileChange} />
 
       <style>{`
+        /* 框选模式下画布使用指针光标（覆盖 ReactFlow 的 grab 规则与容器继承） */
+        .mouse-mode-select .react-flow__pane,
+        .mouse-mode-select .react-flow__pane.selection,
+        .mouse-mode-select .react-flow__node.draggable,
+        .mouse-mode-select .react-flow__nodesselection-rect {
+          cursor: default;
+        }
         .btn-back,
         .btn-subtitle-toggle {
           transition: background 0.15s;
@@ -644,39 +652,43 @@ export default function Detail() {
         }
       `}</style>
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={addEdge}
-        onNodeClick={handleNodeClick}
-        onNodeDoubleClick={handleNodeDoubleClick}
-        onPaneClick={handlePaneClick}
-        onPaneMouseMove={handlePaneMouseMove}
-        onNodeContextMenu={handleNodeContextMenu}
-        onPaneContextMenu={handlePaneContextMenu}
-        onEdgeClick={handleEdgeClick}
-        onInit={handleInit}
-        onSelectionChange={handleSelectionChange}
-        nodeTypes={nodeTypes}
-        fitView={false}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
-        minZoom={0.2}
-        maxZoom={3}
-        zoomOnScroll={false}
-        onNodeDragStop={handleNodeDragStop}
-        panOnScroll={true}
-        selectionMode={SelectionMode.Partial}
-        deleteKeyCode={null}
-        multiSelectionKeyCode="Shift"
-        onMoveEnd={handleMoveEnd}
-        onlyRenderVisibleElements
-        proOptions={{ hideAttribution: true }}
-        style={{ width: "100%", height: "100%" }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
-      </ReactFlow>
+      <MouseModeContext.Provider value={mouseMode}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={addEdge}
+          onNodeClick={handleNodeClick}
+          onNodeDoubleClick={handleNodeDoubleClick}
+          onPaneClick={handlePaneClick}
+          onPaneMouseMove={handlePaneMouseMove}
+          onNodeContextMenu={handleNodeContextMenu}
+          onPaneContextMenu={handlePaneContextMenu}
+          onEdgeClick={handleEdgeClick}
+          onInit={handleInit}
+          onSelectionChange={handleSelectionChange}
+          nodeTypes={nodeTypes}
+          fitView={false}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
+          minZoom={0.2}
+          maxZoom={3}
+          zoomOnScroll={false}
+          onNodeDragStop={handleNodeDragStop}
+          panOnScroll={true}
+          panOnDrag={mouseMode === "hand"}
+          selectionOnDrag={mouseMode === "select"}
+          selectionMode={SelectionMode.Partial}
+          deleteKeyCode={null}
+          multiSelectionKeyCode="Shift"
+          onMoveEnd={handleMoveEnd}
+          onlyRenderVisibleElements
+          proOptions={{ hideAttribution: true }}
+          style={{ width: "100%", height: "100%" }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
+        </ReactFlow>
+      </MouseModeContext.Provider>
 
       <CustomControls
         rfInstance={rfInstance}
@@ -685,6 +697,8 @@ export default function Detail() {
         onToggleAssetLibrary={() => setShowAssetLibrary((v) => !v)}
         onPreview={() => setShowPreview(true)}
         onOrganize={organizeCanvas}
+        mouseMode={mouseMode}
+        onToggleMouseMode={() => setMouseMode((m) => (m === "hand" ? "select" : "hand"))}
         className="custom-controls absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-black rounded-lg p-0.5 select-none"
       />
 

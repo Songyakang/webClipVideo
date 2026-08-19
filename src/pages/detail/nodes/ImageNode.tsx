@@ -1,9 +1,11 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Toolbox } from "../toolbox";
+import { useMouseMode } from "../hooks/MouseModeContext";
 
 export default memo(function ImageNode({ id, data, selected, dragging }: NodeProps) {
   const d = data as any;
+  const mouseMode = useMouseMode(); // 箭头（框选）模式下不显示 toolbox
   const w = d.w || 700;
   const h = d.h || 400;
   const isUpload = d.type === "image-upload";
@@ -28,7 +30,7 @@ export default memo(function ImageNode({ id, data, selected, dragging }: NodePro
         </div>
       )}
       <Handle type="source" position={Position.Right} className="flow-handle" />
-      {selected && !dragging && (
+      {mouseMode === "hand" && selected && !dragging && (
         <div className="node-toolbox-wrapper">
           <Toolbox nodeId={id} nodeType="image" />
         </div>

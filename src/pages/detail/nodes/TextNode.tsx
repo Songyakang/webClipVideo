@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useReducer, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Toolbox } from "../toolbox";
+import { useMouseMode } from "../hooks/MouseModeContext";
 
 const tryParsePrompt = (content: string): string => {
   try {
@@ -43,7 +44,8 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
   };
 
   const isEmpty = !d.content && !isEditing;
-  const showOptions = isEmpty && selected && !d.mode;
+  const mouseMode = useMouseMode(); // 箭头（框选）模式下不显示 toolbox
+  const showOptions = isEmpty && selected && !d.mode && mouseMode === "hand";
 
   const handleOption = (mode: string) => {
     d.mode = mode;
@@ -108,7 +110,7 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
       )}
 
       <Handle type="source" position={Position.Right} className="flow-handle" />
-      {selected && !isEditing && !dragging && !showOptions && (
+      {mouseMode === "hand" && selected && !isEditing && !dragging && !showOptions && (
         <div className="node-toolbox-wrapper">
           <Toolbox
             nodeId={id}
