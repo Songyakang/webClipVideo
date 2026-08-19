@@ -17,7 +17,7 @@ export const MAIN_MENU: MenuItem[] = [
   { label: "添加节点" },
   { label: "撤销", shortcut: "Ctrl+Z" },
   { label: "重做", shortcut: "Ctrl+Shift+Z" },
-  { label: "粘贴", shortcut: "Ctrl+V", disabled: true },
+  { label: "粘贴", shortcut: "Ctrl+V" },
 ];
 
 export const FLOW_ITEM_MENU: MenuItem[] = [

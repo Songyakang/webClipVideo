@@ -20,10 +20,12 @@ interface MenuActionDeps {
   createPanoramaNode?: (x: number, y: number) => string;
   onReversePromptFromImage?: (imageNodeId: string) => void;
   onOpenTimeline?: (nodeId: string) => void;
+  onCopy: () => void;
+  onPaste: (pos?: { x: number; y: number }) => void;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline, onCopy, onPaste } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
@@ -136,10 +138,21 @@ export function useMenuActions(deps: MenuActionDeps) {
         if (menu.nodeId) duplicateNode(menu.nodeId);
         setMenu(null);
         break;
+      case "复制到剪贴板":
+        setMenu(null);
+        onCopy();
+        break;
+      case "粘贴": {
+        // 粘贴到右键菜单位置（menu.x/menu.y 为客户端坐标，转 flow 坐标）
+        const { x, y } = screenToFlow(menu.x, menu.y);
+        setMenu(null);
+        onPaste({ x, y });
+        break;
+      }
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline, onCopy, onPaste]);
 
   return { handleMenuAction };
 }

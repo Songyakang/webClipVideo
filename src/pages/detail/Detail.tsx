@@ -43,6 +43,8 @@ import CanvasPreview from "./CanvasPreview";
 import { getAssetSrc } from "../../lib/assets";
 import { showToast } from "../../lib/toast";
 import type { LayoutRequest, LayoutResponse } from "./layoutWorker";
+import { buildCopyPayload, buildPastePayload, type ClipboardPayload } from "./hooks/clipboard";
+import { MouseModeContext, type MouseMode } from "./hooks/MouseModeContext";
 
 
 const nodeTypes: NodeTypes = {
@@ -78,6 +80,9 @@ export default function Detail() {
   const loadedRef = useRef(false);
   const nodeIdCounterRef = useRef(0);
   const edgeIdCounterRef = useRef(0);
+  const clipboardRef = useRef<ClipboardPayload | null>(null); // 内存剪贴板（不写系统剪贴板）
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null); // 最近鼠标屏幕坐标（粘贴定位）
+  const pasteStepRef = useRef(0); // 连续粘贴级联步数：同位置多次粘贴按 +20/+20 错开
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
@@ -383,6 +388,63 @@ export default function Detail() {
     setTimelineNodeId(nodeId);
   }, []);
 
+  // 只更新 selected 状态变化的节点，未变化的保持对象引用 —
+  // 节点组件均为 memo，引用不变即跳过 re-render（原来每次点击全量重渲染 O(N) 组件）
+  const applyNodeSelection = useCallback((targetId: string | null) => {
+    setNodes((nds) => {
+      let changed = false;
+      const next = nds.map((n) => {
+        const should = n.id === targetId;
+        if (!!n.selected === should) return n;
+        changed = true;
+        return { ...n, selected: should };
+      });
+      return changed ? next : nds;
+    });
+  }, [setNodes]);
+
+  // 复制选中节点到内存剪贴板：单选仅节点，多选保留选中集内部边
+  const handleCopy = useCallback(() => {
+    if (selectedNodes.length === 0) return; // 空选择不复制
+    clipboardRef.current = buildCopyPayload(
+      nodesRef.current,
+      edgesRef.current,
+      new Set(selectedNodes.map((n) => n.id)),
+    );
+  }, [selectedNodes]);
+
+  const handlePaste = useCallback((pos?: { x: number; y: number }) => {
+    if (!clipboardRef.current || clipboardRef.current.nodes.length === 0) {
+      showToast("剪贴板为空，请先复制节点", "info");
+      return;
+    }
+    if (!loadedRef.current) return; // 画布未加载完成不粘贴，避免被加载结果覆盖
+    // 定位：显式位置（右键菜单）> 最近鼠标位置 > 视口中心
+    const target = pos ?? (lastPointerRef.current
+      ? screenToFlow(lastPointerRef.current.x, lastPointerRef.current.y)
+      : viewportCenter());
+    const step = pasteStepRef.current++;
+    const result = buildPastePayload(
+      clipboardRef.current,
+      nodeIdCounterRef.current,
+      edgeIdCounterRef.current,
+      target,
+      { x: step * 20, y: step * 20 },
+    );
+    nodeIdCounterRef.current = result.nodeIdCounter;
+    edgeIdCounterRef.current = result.edgeIdCounter;
+    applyNodeSelection(null); // 原选中取消
+    setNodes((prev) => [...prev, ...result.nodes]);
+    setEdges((prev) => [...prev, ...result.edges]);
+    setSelectedNodes(result.nodes); // 粘贴节点置为选中（ReactFlow 经 onSelectionChange 同步）
+  }, [screenToFlow, viewportCenter, applyNodeSelection, setNodes, setEdges]);
+
+  // 记录最近鼠标屏幕坐标用于粘贴定位；鼠标移动后重开粘贴级联
+  const handlePaneMouseMove = useCallback((e: React.MouseEvent) => {
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    pasteStepRef.current = 0;
+  }, []);
+
   const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes, selectedNodes,
     addNode, deleteNode, duplicateNode,
@@ -393,12 +455,16 @@ export default function Detail() {
     createPanoramaNode,
     onReversePromptFromImage: handleReversePromptFromImage,
     onOpenTimeline: handleOpenTimeline,
+    onCopy: handleCopy,
+    onPaste: handlePaste,
   });
 
   useKeyboardShortcuts({
     edgeToDelete, selectedNodes,
     setMenu, setEdgeToDelete,
     deleteNode, removeEdge,
+    onCopy: handleCopy,
+    onPaste: handlePaste,
   });
 
   useCanvasPersistence(id!, nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
@@ -433,21 +499,6 @@ export default function Detail() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo, setNodes, setEdges]);
-
-  // 只更新 selected 状态变化的节点，未变化的保持对象引用 —
-  // 节点组件均为 memo，引用不变即跳过 re-render（原来每次点击全量重渲染 O(N) 组件）
-  const applyNodeSelection = useCallback((targetId: string | null) => {
-    setNodes((nds) => {
-      let changed = false;
-      const next = nds.map((n) => {
-        const should = n.id === targetId;
-        if (!!n.selected === should) return n;
-        changed = true;
-        return { ...n, selected: should };
-      });
-      return changed ? next : nds;
-    });
-  }, [setNodes]);
 
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
@@ -488,6 +539,7 @@ export default function Detail() {
   const handlePaneClick = useCallback(() => {
     setSelectedNodes([]);
     applyNodeSelection(null);
+    pasteStepRef.current = 0;
   }, [setSelectedNodes, applyNodeSelection]);
 
   const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: FlowNode) => {
@@ -601,6 +653,7 @@ export default function Detail() {
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onPaneClick={handlePaneClick}
+        onPaneMouseMove={handlePaneMouseMove}
         onNodeContextMenu={handleNodeContextMenu}
         onPaneContextMenu={handlePaneContextMenu}
         onEdgeClick={handleEdgeClick}
