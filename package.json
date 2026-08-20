@@ -26,7 +26,8 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.18.1",
     "tailwindcss": "^4.3.3",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

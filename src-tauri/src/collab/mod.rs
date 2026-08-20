@@ -291,3 +291,102 @@ pub async fn collab_status(
         .as_ref()
         .map(|s| CollabStartInfo { code: s.code.clone(), port: s.port }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::StreamExt;
+    use tokio_tungstenite::connect_async;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
+    use yrs::updates::encoder::Encode;
+    use yrs::GetString;
+    use yrs::Text;
+
+    async fn spawn_test_server() -> (u16, Arc<RwLock<HashMap<String, Arc<Room>>>>) {
+        let rooms: Arc<RwLock<HashMap<String, Arc<Room>>>> = Arc::default();
+        rooms.write().await.insert("TEST-123".into(), Room::new());
+        let app = Router::new()
+            .route("/ws/{room_id}", get(ws_handler))
+            .with_state(rooms.clone());
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (port, rooms)
+    }
+
+    fn url(port: u16, token: &str) -> String {
+        format!("ws://127.0.0.1:{port}/ws/TEST-123?token={token}")
+    }
+
+    /// 本地 doc 写入文本，返回全量 state update
+    fn update_with_text(text: &str) -> Vec<u8> {
+        let doc = Doc::new();
+        let txt = doc.get_or_insert_text("t");
+        {
+            let mut txn = doc.transact_mut();
+            txt.insert(&mut txn, 0, text);
+        }
+        let txn = doc.transact();
+        txn.encode_state_as_update_v1(&StateVector::default())
+    }
+
+    /// 空 state vector 的合法编码（新客户端：从零同步）
+    fn empty_state_vector() -> Vec<u8> {
+        StateVector::default().encode_v1()
+    }
+
+    #[tokio::test]
+    async fn empty_room_replies_empty_sync1() {
+        let (port, _) = spawn_test_server().await;
+        let (mut ws, _) = connect_async(url(port, "TEST-123")).await.unwrap();
+        ws.send(WsMessage::Binary(encode_sync(SYNC_STEP2, &empty_state_vector()).into())).await.unwrap();
+        let msg = ws.next().await.unwrap().unwrap();
+        let WsMessage::Binary(data) = msg else { panic!("expected binary") };
+        let (subtype, payload) = decode_sync(&data[1..]).unwrap();
+        assert_eq!(subtype, SYNC_STEP1);
+        // 空房间：sync1 是合法空 update（v1 编码带 1 字节头，不能断言零长）
+        assert!(Update::decode_v1(payload).is_ok());
+    }
+
+    #[tokio::test]
+    async fn update_reaches_late_joiner() {
+        let (port, rooms) = spawn_test_server().await;
+
+        // 客户端 A：sync2 → 收 sync1（空）→ 发一条 update
+        let (mut ws_a, _) = connect_async(url(port, "TEST-123")).await.unwrap();
+        ws_a.send(WsMessage::Binary(encode_sync(SYNC_STEP2, &empty_state_vector()).into())).await.unwrap();
+        let _ = ws_a.next().await; // sync1 空
+        let update = update_with_text("hello");
+        ws_a.send(WsMessage::Binary(encode_sync(SYNC_UPDATE, &update).into())).await.unwrap();
+
+        // 客户端 B 晚加入：sync2 空 sv → sync1 应含 A 的内容
+        let (mut ws_b, _) = connect_async(url(port, "TEST-123")).await.unwrap();
+        ws_b.send(WsMessage::Binary(encode_sync(SYNC_STEP2, &empty_state_vector()).into())).await.unwrap();
+        let msg = ws_b.next().await.unwrap().unwrap();
+        let WsMessage::Binary(data) = msg else { panic!("expected binary") };
+        let (subtype, payload) = decode_sync(&data[1..]).unwrap();
+        assert_eq!(subtype, SYNC_STEP1);
+        assert!(!payload.is_empty());
+
+        // 应用到本地 doc 验证内容
+        let doc_b = Doc::new();
+        doc_b.transact_mut().apply_update(Update::decode_v1(payload).unwrap()).unwrap();
+        let txt = doc_b.get_or_insert_text("t");
+        assert_eq!(txt.get_string(&doc_b.transact()), "hello");
+
+        // 服务端房间 doc 亦应有内容
+        let room = rooms.read().await.get("TEST-123").unwrap().clone();
+        let doc = room.doc.lock().unwrap();
+        let txt = doc.get_or_insert_text("t");
+        assert_eq!(txt.get_string(&doc.transact()), "hello");
+    }
+
+    #[tokio::test]
+    async fn bad_token_rejected() {
+        let (port, _) = spawn_test_server().await;
+        let res = connect_async(url(port, "WRONG")).await;
+        assert!(res.is_err(), "错误 token 应被拒绝");
+    }
+}

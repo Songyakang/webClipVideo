@@ -46,6 +46,8 @@ import type { LayoutRequest, LayoutResponse } from "./layoutWorker";
 import { buildCopyPayload, buildPastePayload, type ClipboardPayload } from "./hooks/clipboard";
 import { MouseModeContext, type MouseMode } from "./hooks/MouseModeContext";
 import RenderPoCButton from "./director/RenderPoCButton";
+import { useCollabBinding } from "./hooks/useCollab";
+import CollabPanel from "./CollabPanel";
 
 
 const nodeTypes: NodeTypes = {
@@ -471,6 +473,9 @@ export default function Detail() {
 
   useCanvasPersistence(id!, nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
 
+  // 协作同步：会话激活时建立 Y.Doc ↔ 画布状态双向绑定（P0）
+  useCollabBinding(id!, nodes, edges, setNodes, setEdges, loadedRef);
+
   // Push undo snapshot on node/edge count changes (add/delete)
   const prevLenRef = useRef({ nodes: nodes.length, edges: edges.length });
   useEffect(() => {
@@ -705,6 +710,9 @@ export default function Detail() {
 
       {/* 临时 PoC 入口（方案 §10 验收点 1）— 验证完成后移除 */}
       <RenderPoCButton projectId={id!} />
+
+      {/* 协作面板（P0：发起/加入协作） */}
+      <CollabPanel />
 
       <button className="btn-back fixed top-4 left-4 z-10 cursor-pointer px-4 py-2 rounded-lg select-none text-sm" onClick={() => navigate("/")}>&larr; 返回</button>
       {showAssetLibrary && (
