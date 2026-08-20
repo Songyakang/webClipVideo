@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod asr;
+pub mod collab;
 mod inpaint;
 mod voice;
 
@@ -16,6 +17,7 @@ use commands::timeline::render_timeline;
 use commands::voice::{extract_voice_profile, synthesize_speech};
 use commands::config::{get_all_config, set_config_key, get_platforms, save_platforms};
 use commands::db::*;
+use collab::{collab_start, collab_stop, collab_status, CollabState};
 use db::Database;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::Emitter;
@@ -29,6 +31,7 @@ pub fn run() {
         .setup(|app| {
             let database = Database::new().expect("failed to init database");
             app.manage(database);
+            app.manage(CollabState::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -74,6 +77,10 @@ pub fn run() {
             db_save_timeline,
             db_load_timeline,
             db_delete_timeline,
+            // 协作同步（宿主内嵌中继）
+            collab_start,
+            collab_stop,
+            collab_status,
         ])
         .menu(|handle| {
             let settings = MenuItemBuilder::with_id("settings", "设置...").build(handle)?;

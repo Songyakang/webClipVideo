@@ -46,6 +46,10 @@ ndarray = "0.17"
 # SQLite (replaces browser IndexedDB)
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# 协作同步（宿主内嵌 Yjs 中继：axum ws + yrs CRDT）
+axum = { version = "0.8", features = ["ws"] }
+yrs = "0.21"
+
 # FFT for mel spectrogram (whisper preprocessing, replaces whisper.cpp CLI)
 rustfft = "6"
 
