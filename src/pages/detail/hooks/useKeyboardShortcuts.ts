@@ -7,6 +7,8 @@ interface Args {
   setEdgeToDelete: (e: null) => void;
   deleteNode: (id: string) => void;
   removeEdge: (id: string) => void;
+  onGroup?: () => void;
+  onUngroup?: () => void;
   onCopy: () => void;
   onPaste: () => void;
 }
@@ -20,6 +22,8 @@ export function useKeyboardShortcuts({
   removeEdge,
   onCopy,
   onPaste,
+  onGroup,
+  onUngroup,
 }: Args) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -27,7 +31,11 @@ export function useKeyboardShortcuts({
         setMenu(null);
         setEdgeToDelete(null);
       }
-      const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement).tagName);
+      const isInput = !!(e.target as HTMLElement).closest?.("input, textarea, select, [contenteditable='true']");
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g" && !isInput) {
+        e.preventDefault();
+        if (e.shiftKey) onUngroup?.(); else onGroup?.();
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && !isInput) {
         e.preventDefault();
         if (edgeToDelete) { removeEdge(edgeToDelete.id); setEdgeToDelete(null); }
@@ -45,5 +53,5 @@ export function useKeyboardShortcuts({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [edgeToDelete, selectedNodes, setMenu, setEdgeToDelete, deleteNode, removeEdge, onCopy, onPaste]);
+  }, [edgeToDelete, selectedNodes, setMenu, setEdgeToDelete, deleteNode, removeEdge, onCopy, onPaste, onGroup, onUngroup]);
 }

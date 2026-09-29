@@ -20,16 +20,26 @@ interface MenuActionDeps {
   createPanoramaNode?: (x: number, y: number) => string;
   onReversePromptFromImage?: (imageNodeId: string) => void;
   onOpenTimeline?: (nodeId: string) => void;
+  onGroup?: () => void;
+  onUngroup?: () => void;
   onCopy: () => void;
   onPaste: (pos?: { x: number; y: number }) => void;
 }
 
 export function useMenuActions(deps: MenuActionDeps) {
-  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline, onCopy, onPaste } = deps;
+  const { menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline, onCopy, onPaste, onGroup, onUngroup } = deps;
 
   const handleMenuAction = useCallback((action: string) => {
     if (!menu) return;
     switch (action) {
+      case "打组":
+        onGroup?.();
+        setMenu(null);
+        break;
+      case "取消分组":
+        onUngroup?.();
+        setMenu(null);
+        break;
       case "添加节点":
         setMenu({ ...menu, type: "addNode" });
         return;
@@ -152,7 +162,7 @@ export function useMenuActions(deps: MenuActionDeps) {
       default:
         setMenu(null);
     }
-  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline, onCopy, onPaste]);
+  }, [menu, setMenu, nodes, selectedNodes, addNode, deleteNode, duplicateNode, screenToFlow, generate3DFromImage, uploadPosRef, fileInputRef, onUndo, onRedo, createTextNode, createPanoramaNode, onReversePromptFromImage, onOpenTimeline, onCopy, onPaste, onGroup, onUngroup]);
 
   return { handleMenuAction };
 }

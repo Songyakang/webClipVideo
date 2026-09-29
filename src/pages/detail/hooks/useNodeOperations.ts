@@ -1,6 +1,8 @@
 import { useCallback, type MutableRefObject } from "react";
 import { addEdge as rfAddEdge, type Connection, type Edge } from "@xyflow/react";
 import { deleteAssetDir } from "../../../lib/assets";
+import { ungroupNodes } from "../grouping";
+import { buildCopyPayload, buildPastePayload } from "./clipboard";
 import type { FlowNode } from "../nodes/types";
 
 export function useNodeOperations(
@@ -10,6 +12,8 @@ export function useNodeOperations(
   setSelectedNodes: (ns: FlowNode[]) => void,
   nodeIdCounterRef: MutableRefObject<number>,
   edgeIdCounterRef: MutableRefObject<number>,
+  nodesRef: MutableRefObject<FlowNode[]>,
+  edgesRef: MutableRefObject<Edge[]>,
 ) {
   const addNode = useCallback((type: string, x: number, y: number, fileUrl?: string, extraData?: Record<string, unknown>) => {
     const isMedia = type === "image-upload" || type === "video-upload";
@@ -23,24 +27,22 @@ export function useNodeOperations(
   }, [setNodes, nodeIdCounterRef]);
 
   const deleteNode = useCallback((nodeId: string) => {
-    setNodes((prev) => prev.filter((n) => n.id !== nodeId));
+    setNodes((prev) => ungroupNodes(prev, new Set([nodeId])).filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e: Edge) => e.source !== nodeId && e.target !== nodeId));
     setSelectedNodes([]);
     deleteAssetDir(projectId, nodeId);
   }, [projectId, setNodes, setEdges, setSelectedNodes]);
 
   const duplicateNode = useCallback((nodeId: string) => {
-    setNodes((prev) => {
-      const node = prev.find((n) => n.id === nodeId);
-      if (!node) return prev;
-      const copy = {
-        ...node,
-        id: `node-${++nodeIdCounterRef.current}`,
-        position: { x: node.position.x + 30, y: node.position.y + 30 },
-      };
-      return [...prev, copy];
-    });
-  }, [setNodes, nodeIdCounterRef]);
+    const payload = buildCopyPayload(nodesRef.current, edgesRef.current, new Set([nodeId]));
+    if (!payload.nodes.length) return;
+    const result = buildPastePayload(payload, nodeIdCounterRef.current, edgeIdCounterRef.current,
+      payload.nodes[0].position, { x: 30, y: 30 });
+    nodeIdCounterRef.current = result.nodeIdCounter;
+    edgeIdCounterRef.current = result.edgeIdCounter;
+    setNodes((prev) => [...prev.map((n) => n.selected ? { ...n, selected: false } : n), ...result.nodes]);
+    setEdges((prev) => [...prev, ...result.edges]);
+  }, [setNodes, setEdges, nodeIdCounterRef, edgeIdCounterRef, nodesRef, edgesRef]);
 
   const addEdge = useCallback((params: Connection) => {
     setEdges((prev) => rfAddEdge({ ...params, id: `edge-${++edgeIdCounterRef.current}` }, prev));

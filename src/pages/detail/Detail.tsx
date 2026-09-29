@@ -26,6 +26,8 @@ import { useMenuActions } from "./hooks/useMenuActions";
 import { useUndoHistory } from "./hooks/useUndoHistory";
 import ContextMenus from "./ContextMenus";
 import CustomControls from "./CustomControls";
+import GroupNode from "./nodes/GroupNode";
+import { absolutePosition, canGroup, groupNodes, ungroupNodes, groupLayoutInput } from "./grouping";
 import TextNode from "./nodes/TextNode";
 import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
@@ -51,6 +53,7 @@ import CollabPanel from "./CollabPanel";
 
 
 const nodeTypes: NodeTypes = {
+  "canvas-group": GroupNode,
   text: TextNode,
   image: ImageNode,
   "image-upload": ImageNode,
@@ -113,7 +116,7 @@ export default function Detail() {
   }, [viewportCenter]);
 
   const { addNode, deleteNode, duplicateNode, addEdge, removeEdge } = useNodeOperations(
-    id!, setNodes, setEdges, setSelectedNodes, nodeIdCounterRef, edgeIdCounterRef
+    id!, setNodes, setEdges, setSelectedNodes, nodeIdCounterRef, edgeIdCounterRef, nodesRef, edgesRef
   );
 
   const { resizeMediaNode } = useMediaResizer(setNodes);
@@ -172,7 +175,7 @@ export default function Detail() {
         setNodes((prev) =>
           prev.map((node) => {
             const pos = msg.positions[node.id];
-            if (!pos) return node;
+            if (!pos || node.parentId) return node;
             return { ...node, position: { x: pos.x, y: pos.y } };
           }),
         );
@@ -191,19 +194,15 @@ export default function Detail() {
 
     layoutWorkerRef.current.postMessage({
       type: "layout",
-      nodes: currentNodes.map((node) => ({
-        id: node.id,
-        width: node.measured?.width ?? node.data.w ?? 200,
-        height: node.measured?.height ?? node.data.h ?? 100,
-      })),
-      edges: currentEdges.map((edge) => ({ source: edge.source, target: edge.target })),
+      ...groupLayoutInput(currentNodes, currentEdges),
     } satisfies LayoutRequest);
   }, [setNodes, push]);
 
   const handleOutputToCanvas = useCallback((videoAssetPath: string) => {
     if (!directorNodeId) return;
     const dirNode = nodesRef.current.find((n) => n.id === directorNodeId);
-    const pos = { x: (dirNode?.position.x ?? 0) + 400, y: dirNode?.position.y ?? 0 };
+    const origin = dirNode ? absolutePosition(dirNode, nodesRef.current) : { x: 0, y: 0 };
+    const pos = { x: origin.x + 400, y: origin.y };
     const vnId = addNode("video-upload", pos.x, pos.y);
     addEdge({ source: directorNodeId, target: vnId, sourceHandle: null, targetHandle: null });
     setDirectorNodeId(null);
@@ -305,17 +304,21 @@ export default function Detail() {
 
   const onUndo = useMemo(() => () => {
     const snap = undo();
-    if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+    if (snap) { prevLenRef.current = { nodes: snap.nodes.length, edges: snap.edges.length }; setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
   }, [undo, setNodes, setEdges]);
   const onRedo = useMemo(() => () => {
     const snap = redo();
-    if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+    if (snap) { prevLenRef.current = { nodes: snap.nodes.length, edges: snap.edges.length }; setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
   }, [redo, setNodes, setEdges]);
 
   const createTextNode = useCallback((x: number, y: number) => {
     const w = 680;
     const gap = 60;
     const textNodeId = addNode("text", x, y);
+    const currentOrigin = () => {
+      const node = nodesRef.current.find((n) => n.id === textNodeId);
+      return node ? absolutePosition(node, nodesRef.current) : { x, y };
+    };
 
     setNodes((prev) =>
       prev.map((n) =>
@@ -325,15 +328,18 @@ export default function Detail() {
               data: {
                 ...n.data,
                 onCreateVideoNode: () => {
-                  const vid = addNode("video-upload", x + w + gap, y);
+                  const origin = currentOrigin();
+                  const vid = addNode("video-upload", origin.x + w + gap, origin.y);
                   addEdge({ source: textNodeId, target: vid, sourceHandle: null, targetHandle: null });
                 },
                 onCreateImageNode: () => {
-                  const imgId = addNode("image", x + w + gap, y);
+                  const origin = currentOrigin();
+                  const imgId = addNode("image", origin.x + w + gap, origin.y);
                   addEdge({ source: textNodeId, target: imgId, sourceHandle: null, targetHandle: null });
                 },
                 onReversePrompt: () => {
-                  const imgId = addNode("image-upload", x - w - gap, y);
+                  const origin = currentOrigin();
+                  const imgId = addNode("image-upload", origin.x - w - gap, origin.y);
                   addEdge({ source: imgId, target: textNodeId, sourceHandle: null, targetHandle: null });
                 },
               },
@@ -375,8 +381,9 @@ export default function Detail() {
     const imgNode = nodesRef.current.find((n) => n.id === imageNodeId);
     if (!imgNode) return;
     const gap = 60;
-    const x = imgNode.position.x + (imgNode.data.w || 200) + gap;
-    const y = imgNode.position.y;
+    const origin = absolutePosition(imgNode, nodesRef.current);
+    const x = origin.x + (imgNode.data.w || 200) + gap;
+    const y = origin.y;
     const textNodeId = addNode("text", x, y);
     addEdge({ source: imageNodeId, target: textNodeId, sourceHandle: null, targetHandle: null });
     setNodes((prev) =>
@@ -440,7 +447,7 @@ export default function Detail() {
     applyNodeSelection(null); // 原选中取消
     setNodes((prev) => [...prev, ...result.nodes]);
     setEdges((prev) => [...prev, ...result.edges]);
-    setSelectedNodes(result.nodes); // 粘贴节点置为选中（ReactFlow 经 onSelectionChange 同步）
+    setSelectedNodes(result.nodes.filter((n) => n.selected)); // 粘贴节点置为选中（ReactFlow 经 onSelectionChange 同步）
   }, [screenToFlow, viewportCenter, applyNodeSelection, setNodes, setEdges]);
 
   // 记录最近鼠标屏幕坐标用于粘贴定位；鼠标移动后重开粘贴级联
@@ -448,6 +455,32 @@ export default function Detail() {
     lastPointerRef.current = { x: e.clientX, y: e.clientY };
     pasteStepRef.current = 0;
   }, []);
+
+  const handleGroup = useCallback(() => {
+    const current = nodesRef.current;
+    const selected = current.filter((n) => n.selected);
+    if (!canGroup(selected)) {
+      showToast("请选择至少两个未分组的节点", "info");
+      return;
+    }
+    push(current, edgesRef.current, true);
+    const next = groupNodes(current, new Set(selected.map((n) => n.id)), `node-${++nodeIdCounterRef.current}`);
+    setNodes(next);
+    setSelectedNodes(next.filter((n) => n.selected));
+    setMenu(null);
+  }, [push, setNodes, setMenu]);
+
+  const handleUngroup = useCallback(() => {
+    const current = nodesRef.current;
+    const groupIds = new Set(current.filter((n) => n.selected)
+      .map((n) => n.type === "canvas-group" ? n.id : n.parentId).filter((id): id is string => !!id));
+    const next = ungroupNodes(current, groupIds);
+    if (next === current) return;
+    push(current, edgesRef.current, true);
+    setNodes(next);
+    setSelectedNodes(next.filter((n) => n.selected));
+    setMenu(null);
+  }, [push, setNodes, setMenu]);
 
   const { handleMenuAction } = useMenuActions({
     menu, setMenu, nodes, selectedNodes,
@@ -461,6 +494,8 @@ export default function Detail() {
     onOpenTimeline: handleOpenTimeline,
     onCopy: handleCopy,
     onPaste: handlePaste,
+    onGroup: handleGroup,
+    onUngroup: handleUngroup,
   });
 
   useKeyboardShortcuts({
@@ -469,6 +504,8 @@ export default function Detail() {
     deleteNode, removeEdge,
     onCopy: handleCopy,
     onPaste: handlePaste,
+    onGroup: handleGroup,
+    onUngroup: handleUngroup,
   });
 
   useCanvasPersistence(id!, nodes, edges, setNodes, setEdges, loadedRef, nodeIdCounterRef, edgeIdCounterRef);
@@ -489,23 +526,19 @@ export default function Detail() {
     prevLenRef.current = { nodes: nodes.length, edges: edges.length };
   }, [nodes.length, edges.length]);
 
-  // Ctrl+Z / Ctrl+Shift+Z keyboard bindings
+  // 输入框保留原生撤销；画布快捷键共用历史恢复路径。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+      const target = e.target as HTMLElement;
+      if (target.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        const snap = undo();
-        if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        const snap = redo();
-        if (snap) { setNodes(snap.nodes); setEdges(snap.edges); setSelectedNodes([]); }
+        if (e.shiftKey) onRedo(); else onUndo();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, setNodes, setEdges]);
+  }, [onUndo, onRedo]);
 
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
     if (node.type === "director") {
@@ -539,6 +572,7 @@ export default function Detail() {
   // 内联箭头函数每次渲染新建引用，会破坏 ReactFlow 内部 NodeWrapper 的 memo，
   // 导致任何状态更新都全量重渲染所有节点组件
   const handleNodeClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
+    if (_e.shiftKey) return;
     setSelectedNodes([node]);
     applyNodeSelection(node.id);
   }, [setSelectedNodes, applyNodeSelection]);
@@ -551,10 +585,17 @@ export default function Detail() {
 
   const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: FlowNode) => {
     e.preventDefault();
-    setSelectedNodes([node]);
-    applyNodeSelection(node.id);
+    if (!nodesRef.current.find((n) => n.id === node.id)?.selected) {
+      setSelectedNodes([node]);
+      applyNodeSelection(node.id);
+    }
     setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: node.id });
   }, [setSelectedNodes, applyNodeSelection, setMenu]);
+
+  const handleSelectionContextMenu = useCallback((e: React.MouseEvent, selected: FlowNode[]) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, type: "flowItem", nodeId: selected[0]?.id });
+  }, [setMenu]);
 
   const handlePaneContextMenu = useCallback((e: React.MouseEvent | MouseEvent) => {
     console.log("pane context menu", nodesRef.current);
@@ -576,8 +617,12 @@ export default function Detail() {
     setSelectedNodes(sel);
   }, []);
 
+  const handleNodeDragStart = useCallback(() => {
+    push(nodesRef.current, edgesRef.current, true);
+  }, [push]);
+
   const handleNodeDragStop = useCallback(() => {
-    push(nodesRef.current, edgesRef.current);
+    push(nodesRef.current, edgesRef.current, true);
   }, [push]);
 
   const handleMoveEnd = useCallback((_e: unknown, vp: { zoom: number }) => {
@@ -671,6 +716,7 @@ export default function Detail() {
           onPaneMouseMove={handlePaneMouseMove}
           onNodeContextMenu={handleNodeContextMenu}
           onPaneContextMenu={handlePaneContextMenu}
+          onSelectionContextMenu={handleSelectionContextMenu}
           onEdgeClick={handleEdgeClick}
           onInit={handleInit}
           onSelectionChange={handleSelectionChange}
@@ -680,7 +726,10 @@ export default function Detail() {
           minZoom={0.2}
           maxZoom={3}
           zoomOnScroll={false}
+          onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
+          onSelectionDragStart={handleNodeDragStart}
+          onSelectionDragStop={handleNodeDragStop}
           panOnScroll={true}
           panOnDrag={mouseMode === "hand"}
           selectionOnDrag={mouseMode === "select"}
@@ -821,7 +870,9 @@ export default function Detail() {
             onClick={() => setMenu(null)}
             onContextMenu={(e) => e.preventDefault()}
           />
-          <ContextMenus menu={menu} onAction={handleMenuAction} selectedCount={selectedNodes.length} />
+          <ContextMenus menu={menu} onAction={handleMenuAction} selectedCount={selectedNodes.length}
+            canGroup={canGroup(selectedNodes)}
+            canUngroup={selectedNodes.some((n) => n.type === "canvas-group" || !!n.parentId)} />
         </>
       )}
 
