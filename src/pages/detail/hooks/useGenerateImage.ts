@@ -4,6 +4,7 @@ import { loadAssetUrl, resolveAssetPath } from "../../../lib/assets";
 import { showToast } from "../../../lib/toast";
 import type { GenerateImageResult, OptimizePromptResult } from "../../../lib/types";
 import type { Edge } from "@xyflow/react";
+import { absolutePosition } from "../grouping";
 import type { FlowNode } from "../nodes/types";
 
 interface GenerateImageOptions {
@@ -147,12 +148,13 @@ export function useGenerateImage(
         showToast("图片生成成功", "success");
       } else {
         const imgNodeId = `node-${Date.now()}`;
+        const origin = absolutePosition(nodesRef.current.find((n) => n.id === nodeId) ?? node, nodesRef.current);
         const imgNode: FlowNode = {
           id: imgNodeId,
           type: "image-upload",
           position: {
-            x: node.position.x + (node.data.w || 680) + 60,
-            y: node.position.y,
+            x: origin.x + (node.data.w || 680) + 60,
+            y: origin.y,
           },
           data: {
             type: "image-upload",

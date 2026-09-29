@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { resolveAssetPath } from "../../../lib/assets";
 import { showToast } from "../../../lib/toast";
 import type { Edge } from "@xyflow/react";
+import { absolutePosition } from "../grouping";
 import type { FlowNode } from "../nodes/types";
 import type { Generate3DResult, SceneModel } from "../../../lib/types";
 
@@ -71,7 +72,10 @@ export function useGenerate3D(
       },
     };
 
-    setNodes((prev) => [...prev, directorNode]);
+    setNodes((prev) => {
+      const origin = absolutePosition(prev.find((n) => n.id === imageNode.id) ?? imageNode, prev);
+      return [...prev, { ...directorNode, position: { x: origin.x + 200, y: origin.y } }];
+    });
     setEdges((prev) => [...prev, { id: `edge-${++edgeIdCounterRef.current}`, source: imageNode.id, target: directorId }]);
 
     // Resolve asset path
