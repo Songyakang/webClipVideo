@@ -1,4 +1,5 @@
 import type { Edge } from "@xyflow/react";
+import { absolutePosition, orderGroupNodes } from "../grouping";
 import type { FlowNode } from "../nodes/types";
 
 /** 内存剪贴板内容：已清理瞬态字段的节点 + 两端均在选择集内的边 */
@@ -15,7 +16,12 @@ export interface ClipboardPayload {
 export function sanitizeNodeForClipboard(node: FlowNode): FlowNode {
   const { videoEl, isEditing, ...cleanData } = (node.data || {}) as Record<string, unknown>;
   const { measured, width, height, selected, dragging, ...rest } = node;
-  return { ...rest, data: cleanData as FlowNode["data"] };
+  return { ...rest,
+    ...(node.type === "canvas-group" ? { style: { ...node.style,
+      width: width ?? node.style?.width ?? node.data.w,
+      height: height ?? node.style?.height ?? node.data.h,
+    } } : {}),
+    data: cleanData as FlowNode["data"] };
 }
 
 /**
@@ -27,7 +33,21 @@ export function buildCopyPayload(
   edges: Edge[],
   selectedIds: Set<string>,
 ): ClipboardPayload {
-  const copied = nodes.filter((n) => selectedIds.has(n.id)).map(sanitizeNodeForClipboard);
+  selectedIds = new Set(selectedIds);
+  // 复制组时带上成员；只复制成员时解除其父关系。
+  for (const n of orderGroupNodes(nodes)) {
+    if (n.parentId && selectedIds.has(n.parentId)) selectedIds.add(n.id);
+  }
+  const copied = orderGroupNodes(nodes).filter((n) => selectedIds.has(n.id)).map((n) => {
+    const copy = sanitizeNodeForClipboard(n);
+    if (n.parentId && !selectedIds.has(n.parentId)) {
+      delete copy.parentId;
+      delete copy.extent;
+      delete copy.expandParent;
+      copy.position = absolutePosition(n, nodes);
+    }
+    return copy;
+  });
   const internal = edges.filter((e) => selectedIds.has(e.source) && selectedIds.has(e.target));
   return { nodes: copied, edges: internal };
 }
@@ -51,21 +71,22 @@ export function buildPastePayload(
   // 复制集左上角（bbox），锚定后保持粘贴内容的相对布局
   let minX = Infinity;
   let minY = Infinity;
-  for (const n of payload.nodes) {
+  for (const n of payload.nodes.filter((n) => !n.parentId)) {
     if (n.position.x < minX) minX = n.position.x;
     if (n.position.y < minY) minY = n.position.y;
   }
 
   let nCounter = nodeIdCounter;
   const idMap = new Map<string, string>();
-  const nodes: FlowNode[] = payload.nodes.map((n) => {
-    const newId = `node-${++nCounter}`;
-    idMap.set(n.id, newId);
+  payload.nodes.forEach((n) => idMap.set(n.id, `node-${++nCounter}`));
+  const nodes: FlowNode[] = orderGroupNodes(payload.nodes).map((n) => {
+    const newId = idMap.get(n.id)!;
     return {
       ...n,
       id: newId,
-      selected: true,
-      position: {
+      selected: !n.parentId,
+      parentId: n.parentId ? idMap.get(n.parentId) : undefined,
+      position: n.parentId ? { ...n.position } : {
         x: position.x + (n.position.x - minX) + offset.x,
         y: position.y + (n.position.y - minY) + offset.y,
       },

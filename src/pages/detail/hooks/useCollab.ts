@@ -9,6 +9,7 @@
  * （本地画布在协作模式中被房间内容覆盖，P0 决策）。
  */
 import { useEffect, useRef, useState } from "react";
+import { orderGroupNodes } from "../grouping";
 import * as Y from "yjs";
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "../nodes/types";
@@ -31,6 +32,10 @@ export function sanitizeNodeForSync(node: FlowNode): Record<string, unknown> {
   delete clean.selected;
   delete clean.dragging;
   delete clean.measured;
+  if (node.type === "canvas-group") {
+    clean.style = { ...node.style, width: node.width ?? node.style?.width ?? node.data.w,
+      height: node.height ?? node.style?.height ?? node.data.h };
+  }
   delete clean.width;
   delete clean.height;
   return clean;
@@ -80,7 +85,7 @@ export function useCollabBinding(
       applyingRef.current = true;
       const syncedNodes = Array.from(doc.getMap<FlowNode>("nodes").values());
       const syncedEdges = Array.from(doc.getMap<Edge>("edges").values());
-      setNodes(syncedNodes);
+      setNodes(orderGroupNodes(syncedNodes));
       setEdges(syncedEdges);
       applyingRef.current = false;
     };

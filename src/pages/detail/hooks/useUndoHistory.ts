@@ -34,8 +34,8 @@ export function useUndoHistory() {
   const currentRef = useRef<Snapshot | null>(null);
   const lastCountRef = useRef({ nodes: 0, edges: 0 });
 
-  const push = useCallback((nodes: FlowNode[], edges: Edge[]) => {
-    if (lastCountRef.current.nodes === nodes.length && lastCountRef.current.edges === edges.length) return;
+  const push = useCallback((nodes: FlowNode[], edges: Edge[], force = false) => {
+    if (!force && lastCountRef.current.nodes === nodes.length && lastCountRef.current.edges === edges.length) return;
     lastCountRef.current = { nodes: nodes.length, edges: edges.length };
 
     if (currentRef.current) {
@@ -55,6 +55,7 @@ export function useUndoHistory() {
     futureRef.current.push(currentRef.current);
     const prev = past.pop()!;
     currentRef.current = prev;
+    lastCountRef.current = { nodes: prev.nodes.length, edges: prev.edges.length };
     setCanUndo(past.length > 0);
     setCanRedo(true);
     return cloneSnapshot(prev.nodes, prev.edges);
@@ -67,6 +68,7 @@ export function useUndoHistory() {
     pastRef.current.push(currentRef.current);
     const next = future.pop()!;
     currentRef.current = next;
+    lastCountRef.current = { nodes: next.nodes.length, edges: next.edges.length };
     setCanUndo(true);
     setCanRedo(future.length > 0);
     return cloneSnapshot(next.nodes, next.edges);

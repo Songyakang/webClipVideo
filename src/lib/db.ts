@@ -6,6 +6,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { orderGroupNodes } from "../pages/detail/grouping";
 import type { Node, Edge } from "@xyflow/react";
 import type { VideoClip, SubtitleTrack } from "./types";
 import type { TimelineRecord } from "../pages/detail/timeline/types";
@@ -33,7 +34,14 @@ export function nodeToInput(n: Node) {
     id: n.id,
     type: n.type,
     position: n.position,
-    data: cleanNodeData(n),
+    data: { ...cleanNodeData(n),
+      // 存入现有 JSON data 列，兼容旧数据库，无需迁移。
+      __canvasGroup: n.parentId || n.type === "canvas-group" ? {
+        parentId: n.parentId,
+        width: n.width ?? n.style?.width,
+        height: n.height ?? n.style?.height,
+      } : undefined,
+    },
     width: n.width ?? undefined,
     height: n.height ?? undefined,
     selected: n.selected ?? false,
@@ -156,6 +164,14 @@ export async function loadCanvas(clipId: string): Promise<{
     data: { ...n.data, fileUrl: n.data?.fileUrl || "" },
     width: n.width ?? undefined,
     height: n.height ?? undefined,
+    ...(n.data?.__canvasGroup?.parentId ? {
+      parentId: n.data.__canvasGroup.parentId, extent: "parent" as const, expandParent: true,
+    } : {}),
+    ...(n.type === "canvas-group" ? {
+      style: { width: n.data?.__canvasGroup?.width ?? n.width ?? n.data?.w,
+        height: n.data?.__canvasGroup?.height ?? n.height ?? n.data?.h },
+      dragHandle: ".group-drag-handle",
+    } : {}),
     selected: false,
     dragging: false,
   }));
@@ -168,7 +184,7 @@ export async function loadCanvas(clipId: string): Promise<{
     targetHandle: e.targetHandle,
   }));
 
-  return { nodes, edges };
+  return { nodes: orderGroupNodes(nodes), edges };
 }
 
 export async function clearCanvas(clipId: string): Promise<void> {
