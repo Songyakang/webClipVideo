@@ -82,11 +82,10 @@ pub async fn generate_image(
         if let Some(ref pid) = platform_id {
             let (base, path, m, key) =
                 crate::commands::config::resolve_platform(pid, "generate-image")?;
-            let key = key.ok_or_else(|| format!("Platform '{}' has no API key", pid))?;
             (base, path, m, key)
         } else {
             let key = get_api_key()?;
-            (STEPFUN_BASE.to_string(), "/images/generations".to_string(), model, key)
+            (STEPFUN_BASE.to_string(), "/images/generations".to_string(), model, Some(key))
         };
 
     let size = size.unwrap_or_else(|| "1024x1024".to_string());
@@ -141,11 +140,11 @@ pub async fn generate_image(
     };
 
     let url = format!("{}{}", base_url, final_path);
-    let auth_header = format!("Bearer {}", &api_key);
-
-    let resp = client
-        .post(&url)
-        .header("Authorization", &auth_header)
+    let mut request = client.post(&url);
+    if let Some(key) = &api_key {
+        request = request.bearer_auth(key);
+    }
+    let resp = request
         .header("Content-Type", "application/json")
         .json(&final_body)
         .send()
@@ -220,11 +219,10 @@ pub async fn edit_image(
         if let Some(ref pid) = platform_id {
             let (base, path, m, key) =
                 crate::commands::config::resolve_platform(pid, "edit-image")?;
-            let key = key.ok_or_else(|| format!("Platform '{}' has no API key", pid))?;
             (base, path, m, key)
         } else {
             let key = get_api_key()?;
-            (STEPFUN_BASE.to_string(), "/images/edits".to_string(), "step-image-edit-2".to_string(), key)
+            (STEPFUN_BASE.to_string(), "/images/edits".to_string(), "step-image-edit-2".to_string(), Some(key))
         };
 
     let file_bytes = tokio::fs::read(&image_path)
@@ -265,11 +263,11 @@ pub async fn edit_image(
     }
 
     let url = format!("{}{}", base_url, endpoint_path);
-    let auth_header = format!("Bearer {}", &api_key);
-
-    let resp = client
-        .post(&url)
-        .header("Authorization", &auth_header)
+    let mut request = client.post(&url);
+    if let Some(key) = &api_key {
+        request = request.bearer_auth(key);
+    }
+    let resp = request
         .multipart(form)
         .send()
         .await

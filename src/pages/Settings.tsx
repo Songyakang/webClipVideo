@@ -2,30 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 
-interface EndpointConfig {
-  key: string;
-  name: string;
-  path: string;
-  model: string;
-  params?: Record<string, string>;
-}
-
-const FUNCTION_OPTIONS: { key: string; label: string }[] = [
-  { key: "generate-image", label: "生成图片" },
-  { key: "edit-image", label: "编辑图片" },
-  { key: "chat", label: "对话" },
-  { key: "reverse-prompt", label: "反推提示词" },
-];
-
-interface Platform {
-  id: string;
-  name: string;
-  platformType: "image" | "video" | "text";
-  location: "local" | "online";
-  apiKey?: string;
-  baseEndpoint: string;
-  endpoints: EndpointConfig[];
-}
+import { type Platform, type EndpointConfig, FUNCTION_OPTIONS, validatePlatform, endpointUrl, parseParams, errorMessage, PLATFORM_CHANGE_EVENT } from "../lib/platforms";
+import { showToast } from "../lib/toast";
+import { SelectWrap, TOOLBOX_CSS } from "./detail/toolbox/common";
 
 const TABS = [
   { key: "image" as const, label: "图片" },
@@ -49,6 +28,7 @@ const EMPTY_FORM: Platform = {
   platformType: "image",
   location: "online",
   apiKey: "",
+  authType: "bearer",
   baseEndpoint: "",
   endpoints: [],
 };
@@ -72,40 +52,54 @@ export default function Settings() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   const loadedRef = useRef(false);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [paramText, setParamText] = useState<string[]>([]);
+  const [testing, setTesting] = useState<string | null>(null);
+  const formVersion = useRef(0);
+  const [testResult, setTestResult] = useState("");
 
   // ---- load ----
   useEffect(() => {
     loadedRef.current = false;
     let cancelled = false;
+    setLoadError("");
     (async () => {
       try {
-        const config = await invoke<Record<string, unknown>>("get_all_config");
+        const [config, list] = await Promise.all([
+          invoke<Record<string, unknown>>("get_all_config"), invoke<Platform[]>("get_platforms"),
+        ]);
         if (cancelled) return;
         setStepfunKey((config?.stepfun_api_key as string) || "");
         setDeepseekKey((config?.deepseek_api_key as string) || "");
         setTripoKey((config?.tripo_api_key as string) || "");
-      } catch { /* ignore */ }
-      try {
-        const list = await invoke<Platform[]>("get_platforms");
-        if (!cancelled) setPlatforms(list || []);
-      } catch { /* ignore */ }
-      loadedRef.current = true;
+        setPlatforms(list);
+        loadedRef.current = true;
+      } catch (err) { if (!cancelled) setLoadError(errorMessage(err)); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [revision]);
 
   // ---- auto-save ----
   const saveLegacyKey = useCallback(async (key: string, value: string) => {
     if (!loadedRef.current) return;
-    try { await invoke("set_config_key", { key, value }); } catch { /* ignore */ }
+    try { await invoke("set_config_key", { key, value: value.trim() }); showToast("密钥已保存", "success"); } catch (err) { showToast(`保存失败：${errorMessage(err)}`, "error"); }
   }, []);
 
   const savePlatforms = useCallback(async (list: Platform[]) => {
+    if (!loadedRef.current) throw new Error("配置尚未加载成功，请先重试加载");
+    await invoke("save_platforms", { platforms: list });
     setPlatforms(list);
-    try { await invoke("save_platforms", { platforms: list }); } catch { /* ignore */ }
+    window.dispatchEvent(new Event(PLATFORM_CHANGE_EVENT));
   }, []);
 
   const openAddForm = () => {
+    if (!loadedRef.current || savingRef.current) return;
+    setFormError(""); setTestResult("");
+    setParamText((PRESET_ENDPOINTS[activeTab] || []).map(() => "{}"));
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
@@ -116,37 +110,62 @@ export default function Settings() {
   };
 
   const openEditForm = (p: Platform) => {
+    if (savingRef.current) return;
+    setFormError(""); setTestResult("");
+    setParamText(p.endpoints.map((e) => JSON.stringify(e.params ?? {}, null, 2)));
     setEditing(p);
     setForm({
       ...p,
+      authType: p.authType ?? (p.apiKey?.trim() ? "bearer" : "none"),
       endpoints: p.endpoints.map((e) => ({ ...e, params: e.params ? { ...e.params } : undefined })),
     });
     setShowForm(true);
   };
 
+  const preparedForm = () => validatePlatform({ ...form, endpoints: form.endpoints.map((ep, i) => ({
+    ...ep, params: parseParams(paramText[i] ?? "{}"),
+  })) });
+
   const handleFormSave = async () => {
-    if (!form.name.trim() || !form.baseEndpoint.trim()) return;
-    let list: Platform[];
-    const clean = {
-      ...form,
-      endpoints: form.endpoints.filter((e) => e.name.trim() && e.path.trim()),
-    };
-    if (editing) {
-      list = platforms.map((p) => (p.id === editing.id ? clean : p));
-    } else {
-      list = [...platforms, { ...clean, id: genId() }];
-    }
-    setShowForm(false);
-    setEditing(null);
-    await savePlatforms(list);
+    if (savingRef.current) return;
+    setFormError("");
+    try {
+      const clean = preparedForm();
+      savingRef.current = true; setSaving(true);
+      const list = editing ? platforms.map((p) => p.id === editing.id ? clean : p) : [...platforms, { ...clean, id: genId() }];
+      await savePlatforms(list);
+      setShowForm(false); setEditing(null);
+      showToast("平台已保存", "success");
+    } catch (err) { setFormError(errorMessage(err)); }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
-    await savePlatforms(platforms.filter((p) => p.id !== id));
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true);
+    try { await savePlatforms(platforms.filter((p) => p.id !== id)); }
+    catch (err) { showToast(`删除失败：${errorMessage(err)}`, "error"); }
+    finally { savingRef.current = false; setSaving(false); }
   };
+
+  const testConnection = async (functionKey: string) => {
+    if (testing) return;
+    const version = formVersion.current;
+    setTestResult(""); setFormError("");
+    try {
+      const platform = preparedForm();
+      setTesting(functionKey);
+      const result = await invoke<{ model: string; latencyMs: number }>("test_llm_connection", { platform, functionKey });
+      if (version === formVersion.current) setTestResult(`连接成功：${result.model} · ${result.latencyMs} ms`);
+    } catch (err) { if (version === formVersion.current) setFormError(errorMessage(err)); }
+    finally { setTesting(null); }
+  };
+
+  useEffect(() => { formVersion.current++; setTestResult(""); }, [form, paramText, showForm]);
 
   // ---- endpoint helpers (in form) ----
   const addEndpoint = () => {
+    setParamText((p) => [...p, "{}"]);
     setForm({ ...form, endpoints: [...form.endpoints, { key: "", name: "", path: "", model: "" }] });
   };
 
@@ -165,6 +184,7 @@ export default function Settings() {
   };
 
   const removeEndpoint = (idx: number) => {
+    setParamText((p) => p.filter((_, i) => i !== idx));
     setForm({ ...form, endpoints: form.endpoints.filter((_, i) => i !== idx) });
   };
 
@@ -172,6 +192,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-[680px] px-4 py-6">
+      <style>{TOOLBOX_CSS}</style>
       <style>{`
         .s-input {
           width: 100%; padding: 8px 12px; border-radius: 6px;
@@ -314,11 +335,14 @@ export default function Settings() {
 
       <div style={{ borderTop: "1px solid #21262d", margin: "24px 0" }} />
 
+      {loadError && <div role="alert" className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+        配置加载失败：{loadError} <button onClick={() => setRevision((r) => r + 1)} className="ml-2 underline">重试加载</button>
+      </div>}
       {/* custom platforms */}
       <section>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h3 style={{ color: "#e6edf3", fontSize: 14, margin: 0 }}>自定义平台</h3>
-          <button className="s-btn s-btn-primary" onClick={openAddForm}>+ 新增</button>
+          <button className="s-btn s-btn-primary" disabled={saving || !loadedRef.current} onClick={openAddForm}>+ 新增</button>
         </div>
 
         {filtered.length === 0 && (
@@ -333,8 +357,8 @@ export default function Settings() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ color: "#e6edf3", fontSize: 14, fontWeight: 500 }}>{p.name}</span>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="s-btn s-btn-sm" onClick={() => openEditForm(p)}>编辑</button>
-                  <button className="s-btn s-btn-sm s-btn-danger" onClick={() => handleDelete(p.id)}>删除</button>
+                  <button className="s-btn s-btn-sm" disabled={saving} onClick={() => openEditForm(p)}>编辑</button>
+                  <button className="s-btn s-btn-sm s-btn-danger" disabled={saving} onClick={() => handleDelete(p.id)}>删除</button>
                 </div>
               </div>
               <div style={{ marginBottom: 4 }}>
@@ -373,7 +397,7 @@ export default function Settings() {
       {showForm && (
         <>
           <div className="fixed inset-0 z-[1001]" style={{ background: "rgba(0,0,0,0.5)" }}
-            onClick={() => { setShowForm(false); setEditing(null); }} />
+            onClick={() => { if (!savingRef.current) { setShowForm(false); setEditing(null); } }} />
           <div
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1002] rounded-xl p-5"
             style={{
@@ -387,7 +411,20 @@ export default function Settings() {
               {editing ? "编辑平台" : "新增平台"}
             </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <fieldset disabled={saving} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0 disabled:opacity-60">
+              <div className="flex items-center gap-2 text-sm text-slate-300">
+                <span>服务预设</span>
+                <SelectWrap contentZIndex={1100} value="custom" items={[{ value: "custom", label: "手动配置" }, { value: "deepseek", label: "DeepSeek" }, { value: "ollama", label: "Ollama（兼容接口）" }, { value: "lmstudio", label: "LM Studio" }]}
+                  onValueChange={(preset) => {
+                    if (preset === "custom") return;
+                    const local = preset !== "deepseek";
+                    setForm({ ...form, name: local ? (preset === "ollama" ? "Ollama" : "LM Studio") : "DeepSeek", platformType: "text",
+                      location: local ? "local" : "online", authType: local ? "none" : "bearer",
+                      baseEndpoint: local ? (preset === "ollama" ? "http://localhost:11434/v1" : "http://localhost:1234/v1") : "https://api.deepseek.com/v1",
+                      endpoints: [{ key: "chat", name: "对话", path: "/chat/completions", model: local ? "" : "deepseek-chat" }] });
+                    setParamText(["{}"]);
+                  }} />
+              </div>
               {/* basic info */}
               <div style={{ display: "flex", gap: 12 }}>
                 <div style={{ flex: 1 }}>
@@ -400,7 +437,7 @@ export default function Settings() {
                   <label className="s-label">位置</label>
                   <div className="s-toggle-group">
                     <button className={`s-toggle-btn${form.location === "local" ? " active" : ""}`}
-                      onClick={() => setForm({ ...form, location: "local", apiKey: "" })}>本地</button>
+                      onClick={() => setForm({ ...form, location: "local", authType: "none" })}>本地</button>
                     <button className={`s-toggle-btn${form.location === "online" ? " active" : ""}`}
                       onClick={() => setForm({ ...form, location: "online" })}>线上</button>
                   </div>
@@ -414,7 +451,7 @@ export default function Settings() {
                   onChange={(e) => setForm({ ...form, baseEndpoint: e.target.value })} />
               </div>
 
-              {form.location === "online" && (
+              {form.authType === "bearer" && (
                 <div>
                   <label className="s-label">API Key</label>
                   <input className="s-input" type="password" placeholder="sk-..."
@@ -423,6 +460,12 @@ export default function Settings() {
                 </div>
               )}
 
+              <div className="flex items-center gap-3 text-sm text-slate-300">
+                <span>认证方式</span>
+                <SelectWrap contentZIndex={1100} value={form.authType ?? "bearer"} onValueChange={(authType) => setForm({ ...form, authType: authType as Platform["authType"] })}
+                  items={[{ value: "bearer", label: "Bearer API Key" }, { value: "none", label: "无认证" }]} />
+              </div>
+              <p className="text-xs text-slate-400">文本功能支持 Chat Completions 兼容接口。反推提示词需要支持图片输入的模型。</p>
               {/* endpoints */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -437,15 +480,10 @@ export default function Settings() {
                 )}
 
                 {form.endpoints.map((ep, idx) => (
-                  <div key={idx} className="s-endpoint-row">
-                    <select className="s-input" style={{ maxWidth: 100, fontFamily: "inherit" }}
-                      value={ep.key}
-                      onChange={(e) => updateEndpoint(idx, "key", e.target.value)}>
-                      <option value="">选择功能</option>
-                      {FUNCTION_OPTIONS.map((o) => (
-                        <option key={o.key} value={o.key}>{o.label}</option>
-                      ))}
-                    </select>
+                  <div key={idx} className="mb-3 rounded-lg border border-slate-700 p-3">
+                    <div className="s-endpoint-row">
+                    <SelectWrap contentZIndex={1100} value={ep.key || "unselected"} onValueChange={(value) => updateEndpoint(idx, "key", value)}
+                      items={[{ value: "unselected", label: "选择功能" }, ...FUNCTION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))]} />
                     <input className="s-input"
                       placeholder="路径 /images/generations" value={ep.path}
                       onChange={(e) => updateEndpoint(idx, "path", e.target.value)} />
@@ -454,17 +492,30 @@ export default function Settings() {
                       onChange={(e) => updateEndpoint(idx, "model", e.target.value)} />
                     <button className="s-btn s-btn-sm s-btn-danger" style={{ flexShrink: 0 }}
                       onClick={() => removeEndpoint(idx)}>&times;</button>
+                    </div>
+                    <p className="my-2 break-all text-xs text-slate-400">最终地址：{(() => { try { return endpointUrl(form.baseEndpoint, ep.path); } catch { return "请填写有效地址和接口路径"; } })()}</p>
+                    {["chat", "reverse-prompt"].includes(ep.key) && <label className="block text-xs text-slate-400">额外参数（JSON）
+                      <textarea aria-label={`${ep.name || "接口"}额外参数`} className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2 font-mono text-xs text-slate-200"
+                        rows={3} value={paramText[idx] ?? "{}"}
+                        onChange={(e) => setParamText((p) => p.map((v, i) => i === idx ? e.target.value : v))} />
+                    </label>}
+                    {["chat", "reverse-prompt"].includes(ep.key) && <button type="button" className="s-btn s-btn-sm mt-2" disabled={!!testing || saving} onClick={() => testConnection(ep.key)}>
+                      {testing === ep.key ? "测试中…" : "测试连接"}
+                    </button>}
                   </div>
                 ))}
               </div>
 
+              <p className="text-xs text-slate-500">连接测试会发送一次最小文本请求，可能产生少量费用；图片能力需用实际图片验证。</p>
+              {formError && <p role="alert" className="text-sm text-red-400">{formError}</p>}
+              {testResult && <p role="status" className="text-sm text-emerald-400">{testResult}</p>}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                <button className="s-btn" onClick={() => { setShowForm(false); setEditing(null); }}>取消</button>
-                <button className="s-btn s-btn-primary" onClick={handleFormSave}>
-                  {editing ? "更新" : "添加"}
+                <button className="s-btn" onClick={() => { if (!savingRef.current) { setShowForm(false); setEditing(null); } }}>取消</button>
+                <button className="s-btn s-btn-primary" disabled={saving} onClick={handleFormSave}>
+                  {saving ? "保存中…" : editing ? "更新" : "添加"}
                 </button>
               </div>
-            </div>
+            </fieldset>
           </div>
         </>
       )}

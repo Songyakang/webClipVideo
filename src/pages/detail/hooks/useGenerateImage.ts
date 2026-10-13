@@ -188,6 +188,7 @@ export function useGenerateImage(
     prompt: string,
     provider: string,
     platformId?: string,
+    requestId?: string,
   ): Promise<string> => {
     if (!prompt.trim()) {
       showToast("请输入提示词", "error");
@@ -203,7 +204,8 @@ export function useGenerateImage(
     setReversingNodeId(nodeId);
 
     try {
-      const refImagePath = await findReferenceImage(nodeId, nodesRef, edgesRef);
+      const ownImage = ["image", "image-upload"].includes(node.type ?? "") && node.data.assetPath;
+      const refImagePath = ownImage ? await resolveAssetPath(ownImage) : await findReferenceImage(nodeId, nodesRef, edgesRef);
       if (!refImagePath) {
         showToast("请先连接图片节点", "error");
         return "";
@@ -214,6 +216,7 @@ export function useGenerateImage(
         imagePath: refImagePath,
         text: prompt.trim(),
         platformId: platformId || null,
+        requestId,
       });
 
       if (!result.optimized_prompt.trim()) {
@@ -224,6 +227,7 @@ export function useGenerateImage(
       showToast("图片分析完成", "success");
       return result.optimized_prompt;
     } catch (err) {
+      if (err === "请求已取消") return "";
       console.error("reverse_prompt failed:", err);
       const msg = typeof err === "string" ? err : "图片分析失败，请稍后重试";
       showToast(msg, "error");

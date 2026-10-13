@@ -106,11 +106,12 @@ export function TooltipWrap({ children, tip }: { children: React.ReactNode; tip:
   );
 }
 
-export function SelectWrap({ value, onValueChange, items, className }: {
+export function SelectWrap({ value, onValueChange, items, className, contentZIndex = 300 }: {
   value: string;
   onValueChange: (v: string) => void;
   items: { value: string; label: string; desc?: string; icon?: () => React.ReactNode }[];
   className?: string;
+  contentZIndex?: number;
 }) {
   return (
     <Select.Root value={value} onValueChange={onValueChange}>
@@ -119,7 +120,7 @@ export function SelectWrap({ value, onValueChange, items, className }: {
         <Select.Icon><ChevronDown /></Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="select-dropdown" position="popper" sideOffset={4} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 8 }}>
+        <Select.Content className="select-dropdown" position="popper" sideOffset={4} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 8, zIndex: contentZIndex }}>
           <Select.Viewport>
             {items.map((m) => (
               <Select.Item key={m.value} value={m.value} className="select-item">

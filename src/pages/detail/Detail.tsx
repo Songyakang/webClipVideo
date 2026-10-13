@@ -23,6 +23,7 @@ import { useGenerate3D } from "./hooks/useGenerate3D";
 import { useGenerateImage } from "./hooks/useGenerateImage";
 import { GenerateContext } from "./hooks/GenerateContext";
 import { useMenuActions } from "./hooks/useMenuActions";
+import { useApplyPrompt } from "./hooks/useApplyPrompt";
 import { useUndoHistory } from "./hooks/useUndoHistory";
 import ContextMenus from "./ContextMenus";
 import CustomControls from "./CustomControls";
@@ -456,6 +457,8 @@ export default function Detail() {
     pasteStepRef.current = 0;
   }, []);
 
+  const applyPrompt = useApplyPrompt(nodesRef, edgesRef, setNodes, push);
+
   const handleGroup = useCallback(() => {
     const current = nodesRef.current;
     const selected = current.filter((n) => n.selected);
@@ -637,7 +640,7 @@ export default function Detail() {
       ? selectedNodes[0]
       : null;
   return (
-    <GenerateContext.Provider value={{ generateImage, generatingNodeId, reversePrompt, reversingNodeId }}>
+    <GenerateContext.Provider value={{ generateImage, generatingNodeId, reversePrompt, reversingNodeId, applyPrompt }}>
     <div
       className={`fixed inset-0 overflow-hidden${mouseMode === "hand" ? " cursor-grab active:cursor-grabbing" : " mouse-mode-select"}`}
       style={{ backgroundColor: "#0d1117" }}

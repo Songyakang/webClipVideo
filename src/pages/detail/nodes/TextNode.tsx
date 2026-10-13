@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useReducer, memo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { useState, useRef, useEffect, memo } from "react";
+import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
+import { useGenerateContext } from "../hooks/GenerateContext";
 import { Toolbox } from "../toolbox";
 import { useMouseMode } from "../hooks/MouseModeContext";
 
@@ -31,16 +32,16 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
   const h = d.h || 400;
   const isEditing = d.isEditing === true;
   const [text, setText] = useState(d.content || "");
-  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+  const { updateNodeData } = useReactFlow();
+  const { applyPrompt } = useGenerateContext();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isEditing) textareaRef.current?.focus();
+    if (isEditing) { setText(tryParsePrompt(d.content || "")); textareaRef.current?.focus(); }
   }, [isEditing]);
 
   const commit = () => {
-    d.content = text;
-    d.isEditing = false;
+    updateNodeData(id, { content: text, isEditing: false });
   };
 
   const isEmpty = !d.content && !isEditing;
@@ -48,9 +49,9 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
   const showOptions = isEmpty && selected && !d.mode && mouseMode === "hand";
 
   const handleOption = (mode: string) => {
-    d.mode = mode;
+    updateNodeData(id, { mode, ...(mode === "text" ? { isEditing: true } : {}) });
     if (mode === "text") {
-      d.isEditing = true;
+      setText(tryParsePrompt(d.content || ""));
     } else if (mode === "video") {
       d.onCreateVideoNode?.();
     } else if (mode === "image") {
@@ -58,10 +59,10 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
     } else if (mode === "reverse") {
       d.onReversePrompt?.();
     }
-    forceUpdate();
+
   };
 
-  const defaultPrompt = d.mode === "reverse" ? REVERSE_PROMPT : tryParsePrompt(d.content || "");
+  const defaultPrompt = d.content ? tryParsePrompt(d.content) : d.mode === "reverse" ? REVERSE_PROMPT : "";
 
   return (
     <div
@@ -118,8 +119,8 @@ export default memo(function TextNode({ id, data, selected, dragging }: NodeProp
             defaultPrompt={defaultPrompt}
             mode={d.mode}
             onOptimized={(optimizedPrompt) => {
-              d.content = JSON.stringify({ prompt: optimizedPrompt });
-              forceUpdate();
+              if (applyPrompt) applyPrompt(id, optimizedPrompt);
+              else updateNodeData(id, { content: JSON.stringify({ prompt: optimizedPrompt }) });
             }}
           />
         </div>

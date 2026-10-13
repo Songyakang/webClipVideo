@@ -39,6 +39,25 @@ videoEl.src = `file://${fullPath}`; // 在 Tauri 中不可用
 - **组件库**：统一使用 [Radix UI](https://www.radix-ui.com/primitives) 原语组件。若 Radix UI 中没有对应组件，提示用户考虑其他方案（如 shadcn/ui、手动实现等），不要自行引入额外组件库
 - **CSS**：使用 Tailwind CSS 编写样式
 
+## SQLite 存储约束
+
+- **按功能分库**：持久化配置和业务数据统一存放在应用数据目录的 `sqlite/` 文件夹中，按功能划分独立 `.db` 文件。禁止将不同功能重新集中到一个 `data.db`，或将配置继续写入 `config.json`、`localStorage`。
+- **目录位置**：macOS 为 `~/Documents/editor-tarui/sqlite/`，Linux 为 `~/.local/share/editor-tarui/sqlite/`，Windows 为 `%APPDATA%/editor-tarui/sqlite/`。路径由后端统一解析，前端通过 Tauri 命令读写。
+- **职责划分**：
+
+  | 数据库 | 职责 |
+  | --- | --- |
+  | `config.db` | API Key、自定义平台、接口参数、用户偏好（包括上次选择的平台） |
+  | `projects.db` | 项目列表和项目信息 |
+  | `canvas.db` | 画布节点、分组、连线 |
+  | `subtitles.db` | 字幕内容和状态 |
+  | `timeline.db` | 时间线编辑数据 |
+
+- **功能隔离**：各数据库使用独立连接和锁；表结构与迁移代码按功能组织在 `src-tauri/src/sqlite/` 下。新增功能应归入职责匹配的数据库，独立业务域应新增对应数据库及模块，不能为方便而写入无关功能的库。
+- **避免跨库耦合**：运行时禁止使用 ATTACH、跨库 JOIN 或跨库事务连接业务；跨功能操作由应用层协调各自的存储接口。
+- **兼容旧数据**：旧 `data.db`、`config.json` 和相关 `localStorage` 值只作为一次性迁移来源。每个目标库的导入及完成标记必须在同一事务内提交，失败可重试；已有目标数据优先，完成后不得重复导入或恢复已删除数据。旧文件保留，不再日常读写；旧 `localStorage` 值仅在 SQLite 保存成功后清理。
+- **迁移验证**：数据库结构或迁移逻辑变更需验证数据保留、功能隔离、失败回滚、重复执行及重新打开数据库后的持久化结果，测试使用临时数据库，不操作真实用户数据。
+
 ## 常见陷阱
 
 ### 持久化：IndexedDB 存取必须剔除 DOM 引用

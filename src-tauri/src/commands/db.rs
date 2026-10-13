@@ -290,6 +290,8 @@ pub fn db_clear_canvas(db: State<Database>, clip_id: String) -> Result<(), Strin
         .map_err(|e| format!("delete nodes: {}", e))?;
     conn.execute("DELETE FROM edges WHERE clip_id = ?1", rusqlite::params![clip_id])
         .map_err(|e| format!("delete edges: {}", e))?;
+    drop(conn);
+    let conn = db.subtitles.lock().map_err(|e| format!("lock: {}", e))?;
     conn.execute(
         "DELETE FROM subtitles WHERE clip_id = ?1",
         rusqlite::params![clip_id],
@@ -455,7 +457,7 @@ pub fn db_delete_canvas_edges(
 
 #[tauri::command]
 pub fn db_get_all_clips(db: State<Database>) -> Result<Vec<ClipOutput>, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.projects.lock().map_err(|e| format!("lock: {}", e))?;
     let mut stmt = conn
         .prepare("SELECT id, title, description, url, thumbnail, duration, tags, created_at FROM clips ORDER BY created_at DESC")
         .map_err(|e| format!("prepare: {}", e))?;
@@ -469,7 +471,7 @@ pub fn db_get_all_clips(db: State<Database>) -> Result<Vec<ClipOutput>, String> 
 
 #[tauri::command]
 pub fn db_get_clip_by_id(db: State<Database>, id: String) -> Result<Option<ClipOutput>, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.projects.lock().map_err(|e| format!("lock: {}", e))?;
     let mut stmt = conn
         .prepare("SELECT id, title, description, url, thumbnail, duration, tags, created_at FROM clips WHERE id = ?1")
         .map_err(|e| format!("prepare: {}", e))?;
@@ -481,7 +483,7 @@ pub fn db_get_clip_by_id(db: State<Database>, id: String) -> Result<Option<ClipO
 
 #[tauri::command]
 pub fn db_add_clip(db: State<Database>, data: ClipInput) -> Result<ClipOutput, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.projects.lock().map_err(|e| format!("lock: {}", e))?;
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -523,7 +525,7 @@ pub fn db_update_clip(
     id: String,
     data: ClipUpdateInput,
 ) -> Result<Option<ClipOutput>, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.projects.lock().map_err(|e| format!("lock: {}", e))?;
 
     // Check exists
     let exists: bool = conn
@@ -586,7 +588,7 @@ pub fn db_update_clip(
 
 #[tauri::command]
 pub fn db_delete_clip(db: State<Database>, id: String) -> Result<bool, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.projects.lock().map_err(|e| format!("lock: {}", e))?;
     let affected = conn
         .execute("DELETE FROM clips WHERE id = ?1", rusqlite::params![id])
         .map_err(|e| format!("delete clip: {}", e))?;
@@ -595,7 +597,7 @@ pub fn db_delete_clip(db: State<Database>, id: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub fn db_search_clips(db: State<Database>, query: String) -> Result<Vec<ClipOutput>, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.projects.lock().map_err(|e| format!("lock: {}", e))?;
     let pattern = format!("%{}%", query.to_lowercase());
     let mut stmt = conn
         .prepare(
@@ -621,7 +623,7 @@ pub fn db_search_clips(db: State<Database>, query: String) -> Result<Vec<ClipOut
 
 #[tauri::command]
 pub fn db_save_subtitle(db: State<Database>, track: SubtitleInput) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.subtitles.lock().map_err(|e| format!("lock: {}", e))?;
     let items_json = track
         .items
         .as_ref()
@@ -647,7 +649,7 @@ pub fn db_load_subtitle(
     node_id: String,
     clip_id: String,
 ) -> Result<Option<Value>, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.subtitles.lock().map_err(|e| format!("lock: {}", e))?;
 
     let row_to_value = |row: &rusqlite::Row| -> rusqlite::Result<Value> {
         let id: String = row.get("id")?;
@@ -692,7 +694,7 @@ pub fn db_load_subtitle(
 
 #[tauri::command]
 pub fn db_save_timeline(db: State<Database>, record: TimelineInput) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.timeline.lock().map_err(|e| format!("lock: {}", e))?;
     let data_json = record.data.to_string();
     conn.execute(
         "INSERT OR REPLACE INTO timelines (project_id, data, updated_at)
@@ -708,7 +710,7 @@ pub fn db_load_timeline(
     db: State<Database>,
     project_id: String,
 ) -> Result<Option<Value>, String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.timeline.lock().map_err(|e| format!("lock: {}", e))?;
     let mut stmt = conn
         .prepare("SELECT project_id, data, updated_at FROM timelines WHERE project_id = ?1")
         .map_err(|e| format!("prepare: {}", e))?;
@@ -733,7 +735,7 @@ pub fn db_load_timeline(
 
 #[tauri::command]
 pub fn db_delete_timeline(db: State<Database>, project_id: String) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| format!("lock: {}", e))?;
+    let conn = db.timeline.lock().map_err(|e| format!("lock: {}", e))?;
     conn.execute(
         "DELETE FROM timelines WHERE project_id = ?1",
         rusqlite::params![project_id],

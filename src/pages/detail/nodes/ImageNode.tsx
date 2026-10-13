@@ -1,10 +1,12 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { useGenerateContext } from "../hooks/GenerateContext";
 import { Toolbox } from "../toolbox";
 import { useMouseMode } from "../hooks/MouseModeContext";
 
 export default memo(function ImageNode({ id, data, selected, dragging }: NodeProps) {
   const d = data as any;
+  const { applyPrompt } = useGenerateContext();
   const mouseMode = useMouseMode(); // 箭头（框选）模式下不显示 toolbox
   const w = d.w || 700;
   const h = d.h || 400;
@@ -32,7 +34,7 @@ export default memo(function ImageNode({ id, data, selected, dragging }: NodePro
       <Handle type="source" position={Position.Right} className="flow-handle" />
       {mouseMode === "hand" && selected && !dragging && (
         <div className="node-toolbox-wrapper">
-          <Toolbox nodeId={id} nodeType="image" />
+          <Toolbox nodeId={id} nodeType="image" defaultPrompt={String(data.llmPrompt ?? "")} onOptimized={(prompt) => applyPrompt?.(id, prompt)} />
         </div>
       )}
     </div>

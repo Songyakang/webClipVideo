@@ -1,0 +1,2 @@
+[mcp_servers.chrome]
+command = "mcp-chrome-stdio"

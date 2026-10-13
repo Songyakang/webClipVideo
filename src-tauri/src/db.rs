@@ -1,27 +1,44 @@
 /// SQLite database module.
 ///
-/// Database file is stored at `~/Documents/editor-tarui/data.db`,
-/// alongside assets and config.json.
+/// Runtime storage is split by feature under `~/Documents/editor-tarui/sqlite/`.
+/// The former data.db is only a migration source.
 ///
 /// Uses rusqlite with "bundled" feature (static SQLite compilation).
 
 use rusqlite::Connection;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Thread-safe wrapper around SQLite connection.
 pub struct Database {
-    pub conn: Mutex<Connection>,
+    /// Canvas nodes and edges.
+    pub conn: Arc<Mutex<Connection>>,
+    pub projects: Arc<Mutex<Connection>>,
+    pub subtitles: Arc<Mutex<Connection>>,
+    pub timeline: Arc<Mutex<Connection>>,
+    pub config: Arc<Mutex<Connection>>,
 }
 
 impl Database {
     /// Open (or create) the SQLite database at the default path and run migrations.
     pub fn new() -> Result<Self, String> {
         let db_path = db_path()?;
-        Self::open_at(&db_path)
+        let base = db_path.parent().ok_or_else(|| "无法确定数据目录".to_string())?;
+        Self::open_directory(&base.join("sqlite"), Some(&db_path))
     }
 
-    /// Open (or create) the SQLite database at a custom path (useful for tests).
+    /// Independent connections and files; no ATTACH or cross-feature SQL queries.
+    pub fn open_directory(directory: &std::path::Path, legacy: Option<&std::path::Path>) -> Result<Self, String> {
+        Ok(Self {
+            conn: crate::sqlite::open_feature(directory, "canvas", crate::sqlite::canvas::SCHEMA, &["nodes", "edges"], legacy)?,
+            projects: crate::sqlite::open_feature(directory, "projects", crate::sqlite::projects::SCHEMA, &["clips"], legacy)?,
+            subtitles: crate::sqlite::open_feature(directory, "subtitles", crate::sqlite::subtitles::SCHEMA, &["subtitles"], legacy)?,
+            timeline: crate::sqlite::open_feature(directory, "timeline", crate::sqlite::timeline::SCHEMA, &["timelines"], legacy)?,
+            config: crate::sqlite::open_feature(directory, "config", crate::sqlite::config::SCHEMA, &["app_settings", "app_settings_migrations"], legacy)?,
+        })
+    }
+
+    /// Legacy single-file layout for migration fixtures and compatibility tests only.
     pub fn open_at(db_path: &std::path::Path) -> Result<Self, String> {
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)
@@ -37,9 +54,8 @@ impl Database {
 
         run_migrations(&conn)?;
 
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        let conn = Arc::new(Mutex::new(conn));
+        Ok(Self { projects: conn.clone(), subtitles: conn.clone(), timeline: conn.clone(), config: conn.clone(), conn })
     }
 }
 
@@ -95,64 +111,11 @@ pub(crate) fn run_migrations(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("Migration version failed: {}", e))?;
     }
 
-    conn.execute_batch(
-        "
-        CREATE TABLE IF NOT EXISTS clips (
-            id          TEXT PRIMARY KEY,
-            title       TEXT NOT NULL DEFAULT '',
-            description TEXT NOT NULL DEFAULT '',
-            url         TEXT NOT NULL DEFAULT '',
-            thumbnail   TEXT NOT NULL DEFAULT '',
-            duration    REAL NOT NULL DEFAULT 0,
-            tags        TEXT NOT NULL DEFAULT '[]',
-            created_at  INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE INDEX IF NOT EXISTS idx_clips_created_at ON clips(created_at);
-
-        CREATE TABLE IF NOT EXISTS nodes (
-            id        TEXT NOT NULL,
-            type      TEXT NOT NULL DEFAULT 'text',
-            pos_x     REAL NOT NULL DEFAULT 0,
-            pos_y     REAL NOT NULL DEFAULT 0,
-            data      TEXT NOT NULL DEFAULT '{}',
-            width     REAL,
-            height    REAL,
-            selected  INTEGER NOT NULL DEFAULT 0,
-            clip_id   TEXT NOT NULL DEFAULT '',
-            PRIMARY KEY (id, clip_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_nodes_clip_id ON nodes(clip_id);
-
-        CREATE TABLE IF NOT EXISTS edges (
-            id            TEXT NOT NULL,
-            source        TEXT NOT NULL DEFAULT '',
-            target        TEXT NOT NULL DEFAULT '',
-            source_handle TEXT NOT NULL DEFAULT '',
-            target_handle TEXT NOT NULL DEFAULT '',
-            clip_id       TEXT NOT NULL DEFAULT '',
-            PRIMARY KEY (id, clip_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_edges_clip_id ON edges(clip_id);
-
-        CREATE TABLE IF NOT EXISTS subtitles (
-            id       TEXT NOT NULL,
-            items    TEXT NOT NULL DEFAULT '[]',
-            language TEXT NOT NULL DEFAULT '',
-            status   TEXT NOT NULL DEFAULT '',
-            clip_id  TEXT NOT NULL DEFAULT '',
-            PRIMARY KEY (id, clip_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_subtitles_clip_id ON subtitles(clip_id);
-
-        CREATE TABLE IF NOT EXISTS timelines (
-            project_id TEXT PRIMARY KEY,
-            data       TEXT NOT NULL DEFAULT '{}',
-            updated_at INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE INDEX IF NOT EXISTS idx_timelines_updated_at ON timelines(updated_at);
-        ",
-    )
-    .map_err(|e| format!("Migration failed: {}", e))
+    for schema in [crate::sqlite::config::SCHEMA, crate::sqlite::projects::SCHEMA,
+        crate::sqlite::canvas::SCHEMA, crate::sqlite::subtitles::SCHEMA, crate::sqlite::timeline::SCHEMA] {
+        conn.execute_batch(schema).map_err(|e| format!("Migration failed: {}", e))?;
+    }
+    Ok(())
 }
 
 /// v0 → v1：把单列主键表重建为复合主键 (id, clip_id)，保留数据。

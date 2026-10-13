@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod sqlite;
 pub mod asr;
 pub mod collab;
 mod inpaint;
@@ -9,13 +10,13 @@ use commands::asr::{generate_subtitles, check_asr_models, download_asr_models};
 use commands::export::{export_with_subtitles, burn_with_synthetic_audio};
 use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inpaint_frame};
 use commands::stepfun::{generate_image, edit_image};
-use commands::llm::{optimize_prompt, reverse_prompt};
+use commands::llm::{optimize_prompt, reverse_prompt, test_llm_connection, cancel_llm_request};
 use commands::assets::{list_project_assets, get_asset_thumbnail};
 use commands::video::trim_video;
 use commands::tripo::generate_3d;
 use commands::timeline::render_timeline;
 use commands::voice::{extract_voice_profile, synthesize_speech};
-use commands::config::{get_all_config, set_config_key, get_platforms, save_platforms};
+use commands::config::{get_all_config, get_config_key, set_config_key, get_platforms, save_platforms};
 use commands::db::*;
 use collab::{collab_start, collab_stop, collab_status, CollabState};
 use db::Database;
@@ -30,6 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let database = Database::new().expect("failed to init database");
+            commands::config::initialize_database(&database).map_err(std::io::Error::other)?;
             app.manage(database);
             app.manage(CollabState::default());
             Ok(())
@@ -50,11 +52,14 @@ pub fn run() {
             edit_image,
             reverse_prompt,
             optimize_prompt,
+            test_llm_connection,
+            cancel_llm_request,
             list_project_assets,
             get_asset_thumbnail,
             trim_video,
             render_timeline,
             get_all_config,
+            get_config_key,
             set_config_key,
             get_platforms,
             save_platforms,

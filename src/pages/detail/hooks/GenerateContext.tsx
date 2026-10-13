@@ -10,8 +10,9 @@ interface GenerateImageOptions {
 interface GenerateContextValue {
   generateImage: (nodeId: string, prompt: string, model: string, options?: GenerateImageOptions) => Promise<void>;
   generatingNodeId: string | null;
-  reversePrompt: (nodeId: string, prompt: string, provider: string) => Promise<string>;
+  reversePrompt: (nodeId: string, prompt: string, provider: string, platformId?: string, requestId?: string) => Promise<string>;
   reversingNodeId: string | null;
+  applyPrompt?: (nodeId: string, content: string) => void;
 }
 
 export const GenerateContext = createContext<GenerateContextValue>({
