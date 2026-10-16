@@ -12,6 +12,8 @@ use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inp
 use commands::stepfun::{generate_image, edit_image};
 use commands::llm::{optimize_prompt, reverse_prompt, test_llm_connection, cancel_llm_request};
 use commands::script::split_script_shots;
+use commands::text_scene::generate_text_scene;
+use commands::blender::{get_blender_status, build_blender_scene, reveal_blender_output};
 use commands::assets::{list_project_assets, get_asset_thumbnail};
 use commands::video::trim_video;
 use commands::tripo::generate_3d;
@@ -31,6 +33,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            // Reusable source assets are independent of per-job Blender outputs.
+            let library = app.path().document_dir()?.join("editor-tarui/assets/3d-library");
+            std::fs::create_dir_all(&library)?;
             let database = Database::new().expect("failed to init database");
             commands::config::initialize_database(&database).map_err(std::io::Error::other)?;
             app.manage(database);
@@ -54,6 +59,10 @@ pub fn run() {
             reverse_prompt,
             optimize_prompt,
             split_script_shots,
+            generate_text_scene,
+            get_blender_status,
+            build_blender_scene,
+            reveal_blender_output,
             test_llm_connection,
             cancel_llm_request,
             list_project_assets,

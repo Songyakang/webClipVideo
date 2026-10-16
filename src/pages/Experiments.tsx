@@ -3,6 +3,17 @@ import { Link } from "react-router-dom";
 // 体验版功能和仍在开发中的功能统一在此展示。
 const FEATURES = [
   {
+    id: "text-scene",
+    title: "文本生成 3D 动画",
+    category: "3D 创作",
+    status: "可体验",
+    description: "输入一段场景描述，自动组合几何模型、布置场景，并按内容生成动作动画。",
+    detail: "桌面端使用已配置的文本平台；支持几何组合建模与关键帧动画，预览需要 WebGPU。",
+    href: "/experiments/text-scene",
+    icon: <><path d="m12 3 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8" /></>,
+    color: "bg-[#2a203d] text-[#d2a8ff]",
+  },
+  {
     id: "audio-node",
     title: "音频节点",
     category: "声音创作",

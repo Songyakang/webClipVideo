@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Detail from "./pages/detail/Detail";
@@ -8,6 +8,7 @@ import ScriptWorkspace from "./pages/ScriptWorkspace";
 import Toast from "./components/Toast";
 import "./App.css";
 
+const TextSceneWorkspace = lazy(() => import("./pages/TextSceneWorkspace"));
 
 /** Inner component that lives inside Router so it can use useNavigate. */
 function AppRoutes() {
@@ -34,6 +35,7 @@ function AppRoutes() {
       <Route path="/settings" element={<Settings />} />
       <Route path="/experiments" element={<Experiments />} />
       <Route path="/experiments/script" element={<ScriptWorkspace />} />
+      <Route path="/experiments/text-scene" element={<Suspense fallback={<p className="p-6 text-sm text-[#8b949e]">正在加载 3D 体验…</p>}><TextSceneWorkspace /></Suspense>} />
       <Route path="/detail/:id/script/:nodeId" element={<ScriptWorkspace />} />
     </Routes>
   );
