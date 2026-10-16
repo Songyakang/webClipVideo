@@ -1,5 +1,6 @@
 import type { Node } from "@xyflow/react";
 import type { CameraTrack, DirectorNodeData, DirectorSceneSettings, SceneModel } from "../../../lib/types";
+import type { ScriptDocument } from "../script/types";
 
 export interface NodeData extends Record<string, unknown> {
   type: string;
@@ -15,6 +16,7 @@ export interface NodeData extends Record<string, unknown> {
   cameraTracks?: CameraTrack[];
   sceneSettings?: DirectorSceneSettings;
   environmentNodeId?: string;
+  script?: ScriptDocument;
 }
 
 export type FlowNode = Node<NodeData>;

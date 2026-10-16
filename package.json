@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@orillusion/core": "^0.9.1",
+    "@radix-ui/react-dropdown-menu": "^2.2.1",
     "@radix-ui/react-select": "^2.3.3",
     "@radix-ui/react-toggle-group": "^1.1.15",
     "@radix-ui/react-tooltip": "^1.2.12",

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { FlowNode } from "../nodes/types";
 import type { MenuState } from "./useContextMenu";
+import { createScript } from "../script/types";
 
 interface MenuActionDeps {
   menu: MenuState | null;
@@ -64,6 +65,12 @@ export function useMenuActions(deps: MenuActionDeps) {
         } else {
           addNode("text", x, y);
         }
+        setMenu(null);
+        break;
+      }
+      case "脚本": {
+        const { x, y } = screenToFlow(menu.x, menu.y);
+        addNode("script", x, y, undefined, { script: createScript(), w: 520, h: 360 });
         setMenu(null);
         break;
       }

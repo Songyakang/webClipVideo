@@ -46,7 +46,7 @@ pub fn platform_config(mut platform: Platform, function: &str) -> Result<LlmConf
     })
 }
 
-fn resolve(
+pub(super) fn resolve(
     provider: &str,
     platform_id: Option<String>,
     function: &str,
@@ -165,7 +165,7 @@ pub fn cancel_llm_request(request_id: String) -> Result<(), String> {
     Ok(())
 }
 
-async fn send(
+pub(super) async fn send(
     config: LlmConfig,
     messages: Value,
     vision: bool,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { VideoClip } from "../lib/types";
 import { getAllClips, addClip, deleteClip, searchClips } from "../lib/store";
 
@@ -76,10 +76,10 @@ export default function Index() {
         }
       `}</style>
 
-      <div className="flex gap-2 mb-6 items-center">
+      <div className="flex flex-wrap gap-2 mb-6 items-center">
         <input
           type="text"
-          className="flex-1 max-w-[400px]"
+          className="min-w-0 flex-1 max-w-[400px]"
           placeholder="搜索标题、描述或标签..."
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
@@ -94,6 +94,15 @@ export default function Index() {
           </button>
         )}
         <div className="flex-1" />
+        <Link
+          to="/experiments"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-1.5 text-[13px] text-[#c9d1d9] no-underline transition-colors hover:border-[#58a6ff] hover:text-[#58a6ff] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#58a6ff]"
+        >
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 3h6M10 3v6L4 19a1.3 1.3 0 0 0 1.1 2h13.8a1.3 1.3 0 0 0 1.1-2L14 9V3M7 14h10" />
+          </svg>
+          体验功能
+        </Link>
         <div style={{ position: "relative" }}>
           <button
             className="bg-transparent border cursor-pointer rounded-lg px-3 py-1.5 text-[13px]"

@@ -34,6 +34,8 @@ import ImageNode from "./nodes/ImageNode";
 import VideoNode from "./nodes/VideoNode";
 import DirectorNode from "./nodes/DirectorNode";
 import PanoramaNode from "./nodes/PanoramaNode";
+import ScriptNode, { OpenScriptContext } from "./nodes/ScriptNode";
+import { saveCanvas } from "../../lib/db";
 import type { FlowNode } from "./nodes/types";
 import SubtitleOverlay from "./SubtitleOverlay";
 import DirectorOverlay from "./DirectorOverlay";
@@ -62,6 +64,7 @@ const nodeTypes: NodeTypes = {
   "video-upload": VideoNode,
   director: DirectorNode,
   panorama: PanoramaNode,
+  script: ScriptNode,
 };
 
 export default function Detail() {
@@ -400,6 +403,21 @@ export default function Detail() {
     setTimelineNodeId(nodeId);
   }, []);
 
+  const openingScriptRef = useRef(false);
+  const handleOpenScript = useCallback(async (nodeId: string) => {
+    if (!loadedRef.current || openingScriptRef.current) return;
+    openingScriptRef.current = true;
+    try {
+      // 路由离开前落盘，避免 500ms 自动保存尚未执行时丢失新节点。
+      await saveCanvas(id!, nodesRef.current, edgesRef.current);
+      navigate(`/detail/${id}/script/${nodeId}`);
+    } catch {
+      showToast("画布保存失败，暂时无法打开脚本，请重试", "error");
+    } finally {
+      openingScriptRef.current = false;
+    }
+  }, [id, navigate]);
+
   // 只更新 selected 状态变化的节点，未变化的保持对象引用 —
   // 节点组件均为 memo，引用不变即跳过 re-render（原来每次点击全量重渲染 O(N) 组件）
   const applyNodeSelection = useCallback((targetId: string | null) => {
@@ -544,7 +562,9 @@ export default function Detail() {
   }, [onUndo, onRedo]);
 
   const handleNodeDoubleClick = useCallback((_e: React.MouseEvent, node: FlowNode) => {
-    if (node.type === "director") {
+    if (node.type === "script") {
+      void handleOpenScript(node.id);
+    } else if (node.type === "director") {
       setDirectorNodeId(node.id);
     } else if (node.type === "panorama") {
       const d = node.data as any;
@@ -569,7 +589,7 @@ export default function Detail() {
         return changed ? next : nds;
       });
     }
-  }, [setNodes]);
+  }, [setNodes, handleOpenScript]);
 
   // ReactFlow 的事件处理必须引用稳定（useCallback）—
   // 内联箭头函数每次渲染新建引用，会破坏 ReactFlow 内部 NodeWrapper 的 memo，
@@ -707,6 +727,7 @@ export default function Detail() {
       `}</style>
 
       <MouseModeContext.Provider value={mouseMode}>
+        <OpenScriptContext.Provider value={handleOpenScript}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -746,6 +767,7 @@ export default function Detail() {
         >
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#21262d" />
         </ReactFlow>
+        </OpenScriptContext.Provider>
       </MouseModeContext.Provider>
 
       <CustomControls

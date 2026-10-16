@@ -11,6 +11,7 @@ use commands::export::{export_with_subtitles, burn_with_synthetic_audio};
 use commands::inpaint::{remove_hard_subtitles, strip_soft_subtitles, preview_inpaint_frame};
 use commands::stepfun::{generate_image, edit_image};
 use commands::llm::{optimize_prompt, reverse_prompt, test_llm_connection, cancel_llm_request};
+use commands::script::split_script_shots;
 use commands::assets::{list_project_assets, get_asset_thumbnail};
 use commands::video::trim_video;
 use commands::tripo::generate_3d;
@@ -52,6 +53,7 @@ pub fn run() {
             edit_image,
             reverse_prompt,
             optimize_prompt,
+            split_script_shots,
             test_llm_connection,
             cancel_llm_request,
             list_project_assets,
@@ -94,8 +96,18 @@ pub fn run() {
                 .separator()
                 .quit()
                 .build()?;
+            // macOS WebView 的文本编辑快捷键依赖原生菜单项。
+            // 自定义菜单替换默认菜单时，必须保留系统剪贴板操作。
+            let edit_menu = SubmenuBuilder::new(handle, "编辑")
+                .cut_with_text("剪切")
+                .copy_with_text("复制")
+                .paste_with_text("粘贴")
+                .separator()
+                .select_all_with_text("全选")
+                .build()?;
             let menu = MenuBuilder::new(handle)
                 .item(&app_menu)
+                .item(&edit_menu)
                 .build()?;
             Ok(menu)
         })

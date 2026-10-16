@@ -5,6 +5,7 @@ pub mod db;
 pub mod export;
 pub mod inpaint;
 pub mod llm;
+pub mod script;
 pub mod stepfun;
 pub mod timeline;
 pub mod tripo;
@@ -12,3 +13,4 @@ pub mod video;
 pub mod voice;
 pub mod voice_encoder;
 pub mod voice_tts;
+
