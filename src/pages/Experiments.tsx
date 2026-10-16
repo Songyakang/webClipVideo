@@ -3,6 +3,14 @@ import { Link } from "react-router-dom";
 // 体验版功能和仍在开发中的功能统一在此展示。
 const FEATURES = [
   {
+    id: "assets3d", title: "3D 资产库", category: "素材管理", status: "可体验",
+    description: "导入人物、建筑与道具，整理材质依赖、预览模型，建立可长期复用的资产库。",
+    detail: "支持 GLB / Blend；在桌面端由本地 Blender 检查与整理，确认分类后入库。",
+    href: "/experiments/assets3d",
+    icon: <><path d="M3 7h18v14H3zM3 7l3-4h12l3 4M9 11h6" /></>,
+    color: "bg-[#16312a] text-[#7ee7b7]",
+  },
+  {
     id: "text-scene",
     title: "文本生成 3D 动画",
     category: "3D 创作",

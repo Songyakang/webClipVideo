@@ -1,4 +1,5 @@
 //! Feature-owned SQLite files. Legacy imports are transactional and idempotent per file.
+pub mod assets3d;
 pub mod canvas;
 pub mod config;
 pub mod projects;

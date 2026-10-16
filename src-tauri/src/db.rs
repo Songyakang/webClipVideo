@@ -61,7 +61,7 @@ impl Database {
 
 /// Determine the database file path.
 /// On macOS: ~/Documents/editor-tarui/data.db
-fn db_path() -> Result<PathBuf, String> {
+pub(crate) fn db_path() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
         let home =

@@ -17,6 +17,7 @@
       "allow": [
         { "path": "$DOCUMENT/editor-tarui/**" }
       ]
-    }
+    },
+    "dialog:allow-open"
   ]
 }

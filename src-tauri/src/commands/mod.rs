@@ -16,3 +16,5 @@ pub mod voice_encoder;
 pub mod voice_tts;
 
 pub mod blender;
+
+pub mod assets3d;

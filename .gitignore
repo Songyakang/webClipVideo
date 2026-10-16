@@ -7,3 +7,5 @@ docsconfig.json
 config.json
 docs
 resume.md
+.pnpm-store/
+src-tauri/gen.backup-*/
